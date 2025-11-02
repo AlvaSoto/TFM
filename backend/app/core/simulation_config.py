@@ -8,7 +8,7 @@ This values control the behavour of each individual simulation
 """
 
 SIMULATION_CONFIG = {
-    "simulation_days": 1,#Number of days to simulate for each household. Main() use it for simulate_events() & inject_leak()
+    "simulation_days": 90,#Number of days to simulate for each household. Main() use it for simulate_events() & inject_leak()
     "time_resolution_minutes": 15,#Every 15 mins we get the consumption, so 60 mins/15=4 intervals, 4 x 24h=96
     "leak_probability": 0.5, #This means that the 50% of the houses will have a leak
     "leak_duration_hours": 8, #If there is a leak it will last 8h with a fix flow 
@@ -157,4 +157,22 @@ DEFAULT_HOUSEHOLD_PROFILES = {
             "gardening": EVENT_CATALOG["gardening"]
         }
     }
+}
+
+#This is for phase 2 EStacionalidad
+
+SEASONAL_MULTIPLAYERS = {
+    #Month: (Multiplier showers, Multipliers Gardening, Multiplier for washing_machine)
+    1: (0.9, 0.0, 0.9),
+    2: (0.9, 0.0, 0.9),
+    3: (1.0, 0.1, 1.0),
+    4: (1.0, 0.3, 1.0),
+    5: (1.1, 0.8, 1.1),
+    6: (1.2, 1.0, 1.2),
+    7: (1.3, 1.0, 1.2),
+    8: (1.2, 0.9, 1.2),
+    9: (1.1, 0.5, 1.1),
+    10: (1.0, 0.2, 1.0),
+    11: (1.0, 0.0, 1.0),
+    12: (0.9, 0.0, 1.0)
 }
