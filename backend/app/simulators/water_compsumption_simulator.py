@@ -207,9 +207,11 @@ def main():
     print("=" * 50)
 
     #Step 1: To set the simulation
-    NUM_HOUSEHOLDS_TO_SIMULATE = 150
+    NUM_HOUSEHOLDS_TO_SIMULATE = 160
     available_household_profile = list(DEFAULT_HOUSEHOLD_PROFILES.values())
     all_households_df = []
+    #List to save the events
+    all_events_list = []
 
     print(f"Starting the simulation for {NUM_HOUSEHOLDS_TO_SIMULATE} households of all tipes ")
 
@@ -230,6 +232,7 @@ def main():
         consumption_df = simulator.aggregate_to_time_series(events, leak, simulation_days=SIMULATION_CONFIG["simulation_days"])
 
         all_households_df.append(consumption_df)
+        all_events_list.extend(events)
 
     print("\n Simulation completed for all the households✅")
     final_dataset = pd.concat(all_households_df, ignore_index=True)
@@ -291,6 +294,27 @@ def main():
     final_dataset.to_csv(output_path, index=False)
     
     print(f"\n💾 Full mixed dataset saved to: {output_path}")
+
+    print("\nConsolidating the detailed events log...")
+
+    event_data = [
+        {
+            "household_id": e.household_id,
+            "event_type": e.event_type,
+            "start_time": e.start_time,
+            "duration_minutes": round(e.duration_minutes, 2),
+            "flow_rate_lpm": round(e.flow_rate_lpm, 2),
+            "total_consumption_l": round(e.total_consumption_l)
+        }
+        for e in all_events_list
+    ]
+
+    events_df = pd.DataFrame(event_data)
+
+    output_path_events = os.path.join(output_dir, f"detailed_events_log_{NUM_HOUSEHOLDS_TO_SIMULATE}_households.csv")
+
+    events_df.to_csv(output_path_events, index=False)
+    print(f"Detailed events log saved in {output_path_events}")
 
 if __name__ == "__main__":
     main()
