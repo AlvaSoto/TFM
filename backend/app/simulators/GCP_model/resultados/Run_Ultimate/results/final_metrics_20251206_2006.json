@@ -1,0 +1,59 @@
+{
+  "config": {
+    "data_path": "data/mixed_population_dataset_160_households.csv",
+    "sequence_length": 96,
+    "sequence_stride": 2,
+    "train_split_ratio": 0.9,
+    "validation_split": 0.15,
+    "latent_dim": 64,
+    "lstm_units": [
+      256,
+      128,
+      64
+    ],
+    "batch_size": 256,
+    "max_epochs": 150,
+    "patience": 15,
+    "threshold_percentile": 99.0,
+    "base_output_dir": "resultados"
+  },
+  "threshold": 0.6658261388540266,
+  "metrics": {
+    "roc_auc": 0.5143342386788335,
+    "metrics_report": {
+      "0": {
+        "precision": 0.9946340889712152,
+        "recall": 0.9949119891769481,
+        "f1-score": 0.9947730196655027,
+        "support": 68003.0
+      },
+      "1": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 365.0
+      },
+      "accuracy": 0.989600397846946,
+      "macro avg": {
+        "precision": 0.4973170444856076,
+        "recall": 0.49745599458847406,
+        "f1-score": 0.49738650983275134,
+        "support": 68368.0
+      },
+      "weighted avg": {
+        "precision": 0.9893239812823185,
+        "recall": 0.989600397846946,
+        "f1-score": 0.9894621702596709,
+        "support": 68368.0
+      }
+    }
+  },
+  "paths": {
+    "project_dir": "resultados/Run_Ultimate",
+    "checkpoint_dir": "resultados/Run_Ultimate/checkpoints",
+    "backup_dir": "resultados/Run_Ultimate/backup_state",
+    "results_dir": "resultados/Run_Ultimate/results",
+    "scaler_path": "resultados/Run_Ultimate/scaler.joblib",
+    "history_path": "resultados/Run_Ultimate/training_log.csv"
+  }
+}
