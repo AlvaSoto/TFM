@@ -8,11 +8,19 @@ This values control the behavour of each individual simulation
 """
 
 SIMULATION_CONFIG = {
-    "simulation_days": 90,#Number of days to simulate for each household. Main() use it for simulate_events() & inject_leak()
+    "simulation_days": 180,#Number of days to simulate for each household. Main() use it for simulate_events() & inject_leak()
     "time_resolution_minutes": 15,#Every 15 mins we get the consumption, so 60 mins/15=4 intervals, 4 x 24h=96
-    "leak_probability": 0.5, #This means that the 50% of the houses will have a leak
-    "leak_duration_hours": 8, #If there is a leak it will last 8h with a fix flow 
-    "leak_flow_rate": 0.2 #0.2 L/min it is a tipic tank leak
+    "leak_probability": 0.7, #70% of households will have at least one leak - increased to improve class balance
+    "leak_flow_rate_mean": 1.2, #Mean flow rate for leaks (L/min) - realistic for small-to-medium leaks
+    "leak_flow_rate_std": 0.3, #Standard deviation for leak flow rate variability
+    "leak_duration_hours_mean": 48, #Mean duration of leaks (hours) - 2 days average
+    "leak_duration_hours_std": 24, #Standard deviation for leak duration (hours) - allows 24h to 72h range
+    "leak_min_duration_hours": 24, #Minimum leak duration (hours) - ensures leaks are detectable
+    "leak_max_duration_hours": 120, #Maximum leak duration (hours) - up to 5 days
+    "leaks_per_household_mean": 1.5, #Mean number of leaks per household (Poisson distribution) - allows multiple leaks
+    "leak_min_gap_hours": 72, #Minimum gap between leaks in the same household (hours) - prevents overlapping leaks
+    "leak_intermittent_probability": 0.2, #20% of leaks are intermittent (on/off cycles)
+    "leak_intermittent_cycle_hours": 12, #For intermittent leaks: cycle duration (hours on, hours off)
 }
 
 #Probability that an event will occur each hour of the day
@@ -91,8 +99,8 @@ EVENT_CATALOG = {
         "flow_rate_std": 1.0,
         "hourly_probability": HOURLY_PROBABILITY_MEALS
     },
-    "diswasher": {
-        "frequency_per_day": 0.5, #Onde day on one day off
+    "dishwasher": {
+        "frequency_per_day": 0.5, #One day on one day off
         "duration_mean": 60.0,
         "duration_std": 10.0,
         "flow_rate_mean": 0.2,
@@ -101,10 +109,10 @@ EVENT_CATALOG = {
     },
     "washing_machine": {
         "frequency_per_day": 0.3, #Occurs every 3 days
-        "duration_mean": 50.0, #45 mins
+        "duration_mean": 50.0, #50 mins average cycle duration (~50L per cycle at 1.0 L/min)
         "duration_std": 10.0, #standard deviation
-        "flow_rate_mean": 0.25,
-        "flow_rate_std": 0.05,
+        "flow_rate_mean": 1.0, #1.0 L/min - realistic flow rate for modern washing machines during active cycles (filling, rinsing). ~50L per cycle.
+        "flow_rate_std": 0.15, #Standard deviation to reflect variability in cycle stages
         "hourly_probability": HOURLY_PROBABILITY_APPLIANCE
     },
     "gardening": {
@@ -127,7 +135,7 @@ DEFAULT_HOUSEHOLD_PROFILES = {
             "toilet_flush": EVENT_CATALOG["toilet_flush"],
             "tap_use_bathroom": EVENT_CATALOG["tap_use_bathroom"],
             "tap_use_kitchen": EVENT_CATALOG["tap_use_kitchen"],
-            "dishwasher": EVENT_CATALOG["diswasher"],
+            "dishwasher": EVENT_CATALOG["dishwasher"],
             "washing_machine": EVENT_CATALOG["washing_machine"]
         }
     },
@@ -140,7 +148,7 @@ DEFAULT_HOUSEHOLD_PROFILES = {
             "toilet_flush": EVENT_CATALOG["toilet_flush"],
             "tap_use_bathroom": EVENT_CATALOG["tap_use_bathroom"],
             "tap_use_kitchen": EVENT_CATALOG["tap_use_kitchen"],
-            "dishwasher": {**EVENT_CATALOG["diswasher"], "frequency_per_day":1.0},
+            "dishwasher": {**EVENT_CATALOG["dishwasher"], "frequency_per_day":1.0},
             "washing_machine": {**EVENT_CATALOG["washing_machine"], "frequency_per_day": 0.8}
         }
     },
@@ -152,7 +160,7 @@ DEFAULT_HOUSEHOLD_PROFILES = {
             "toilet_flush": EVENT_CATALOG["toilet_flush"],
             "tap_use_bathroom": EVENT_CATALOG["tap_use_bathroom"],
             "tap_use_kitchen": EVENT_CATALOG["tap_use_kitchen"],
-            "dishwasher": {**EVENT_CATALOG["diswasher"], "frequency_per_day": 1.0},
+            "dishwasher": {**EVENT_CATALOG["dishwasher"], "frequency_per_day": 1.0},
             "washing_machine": {**EVENT_CATALOG["washing_machine"], "frequency_per_day": 0.8},
             "gardening": EVENT_CATALOG["gardening"]
         }

@@ -113,44 +113,115 @@ class WaterConsumptionSimulator:
         print(f"✅ {len(all_events)} generated events")
         return all_events
     
-    def inject_leak(self, simulation_days: int) -> Optional[LeakEvent]:
+    def inject_leak(self, simulation_days: int) -> List[LeakEvent]:
         """
-        This function defines if there should be a leak or not. If so, create the object
-
-        This object will be the ground of truth 
-        """
-
-        # Is there any leak?
-        # random.random returns a value between 0-1
-        """
-        Imagine SIMULATION_CONFIG["leak_probability"] = 0.2 (20% leaks, 80% no leaks)
-        If random > 0.2 no leak
+        This function defines if there should be leaks or not. If so, creates leak objects.
+        Now supports multiple leaks per household with variability in flow rate and duration.
+        
+        Returns a list of LeakEvent objects (can be empty if no leaks)
         """
 
+        # Decide if this household will have leaks
         if random.random() > SIMULATION_CONFIG["leak_probability"]:
-            return None
+            return []
         
         total_simulation_hours = simulation_days * 24
-        leak_duration_hours = SIMULATION_CONFIG["leak_duration_hours"]
-
-        # Creating an starting secure point 
-        start_hour_offset = random.randint(0, total_simulation_hours - leak_duration_hours)
-        start_time = self.start_date + timedelta(hours=start_hour_offset)
-        end_time = start_time + timedelta(hours=leak_duration_hours)
-
-        #Creating the leak object
-        leak = LeakEvent(
-            start_time = start_time,
-            end_time = end_time,
-            flow_rate_lpm = SIMULATION_CONFIG["leak_flow_rate"],
-            household_id = self.household_id
-        )
-
-        print(f"Leak active from {start_time} to {end_time}")
-        return leak
+        leaks = []
+        
+        # Determine number of leaks for this household (Poisson distribution)
+        num_leaks = np.random.poisson(SIMULATION_CONFIG["leaks_per_household_mean"])
+        num_leaks = max(1, num_leaks)  # At least 1 leak if household is selected
+        
+        # Track used time slots to prevent overlapping leaks
+        used_slots = []
+        
+        for leak_idx in range(num_leaks):
+            # Generate leak characteristics with variability
+            leak_flow_rate = max(0.3, np.random.normal(
+                SIMULATION_CONFIG["leak_flow_rate_mean"],
+                SIMULATION_CONFIG["leak_flow_rate_std"]
+            ))
+            
+            leak_duration_hours = max(
+                SIMULATION_CONFIG["leak_min_duration_hours"],
+                min(
+                    SIMULATION_CONFIG["leak_max_duration_hours"],
+                    np.random.normal(
+                        SIMULATION_CONFIG["leak_duration_hours_mean"],
+                        SIMULATION_CONFIG["leak_duration_hours_std"]
+                    )
+                )
+            )
+            
+            # Find a valid time slot that doesn't overlap with previous leaks
+            max_attempts = 50
+            attempt = 0
+            valid_slot = False
+            
+            while attempt < max_attempts and not valid_slot:
+                start_hour_offset = random.randint(0, max(1, total_simulation_hours - int(leak_duration_hours)))
+                start_time = self.start_date + timedelta(hours=start_hour_offset)
+                end_time = start_time + timedelta(hours=leak_duration_hours)
+                
+                # Check if this slot overlaps with previous leaks
+                overlaps = False
+                for prev_start, prev_end in used_slots:
+                    if not (end_time <= prev_start or start_time >= prev_end):
+                        overlaps = True
+                        break
+                
+                if not overlaps:
+                    valid_slot = True
+                    used_slots.append((start_time, end_time))
+                else:
+                    attempt += 1
+            
+            if not valid_slot:
+                continue  # Skip this leak if we can't find a valid slot
+            
+            # Check if this leak should be intermittent
+            is_intermittent = random.random() < SIMULATION_CONFIG["leak_intermittent_probability"]
+            
+            if is_intermittent:
+                # For intermittent leaks, create multiple leak events with on/off cycles
+                cycle_hours = SIMULATION_CONFIG["leak_intermittent_cycle_hours"]
+                current_time = start_time
+                cycle_on = True
+                
+                while current_time < end_time:
+                    if cycle_on:
+                        cycle_end = min(current_time + timedelta(hours=cycle_hours), end_time)
+                        leak = LeakEvent(
+                            start_time=current_time,
+                            end_time=cycle_end,
+                            flow_rate_lpm=leak_flow_rate,
+                            household_id=self.household_id
+                        )
+                        leaks.append(leak)
+                        current_time = cycle_end
+                    else:
+                        # Off cycle - skip this period
+                        current_time = min(current_time + timedelta(hours=cycle_hours), end_time)
+                    cycle_on = not cycle_on
+            else:
+                # Continuous leak
+                leak = LeakEvent(
+                    start_time=start_time,
+                    end_time=end_time,
+                    flow_rate_lpm=leak_flow_rate,
+                    household_id=self.household_id
+                )
+                leaks.append(leak)
+        
+        if leaks:
+            print(f"Generated {len(leaks)} leak(s) for household {self.household_id}")
+            for leak in leaks:
+                print(f"  - Leak: {leak.start_time} to {leak.end_time}, flow: {leak.flow_rate_lpm:.2f} L/min")
+        
+        return leaks
     
 
-    def aggregate_to_time_series(self, events: List[WaterEvent], leak: Optional[LeakEvent], simulation_days:int) -> pd.DataFrame:
+    def aggregate_to_time_series(self, events: List[WaterEvent], leaks: List[LeakEvent], simulation_days:int) -> pd.DataFrame:
         """
         Convert the continuous events into discret events 
         """
@@ -183,11 +254,12 @@ class WaterConsumptionSimulator:
                     # In case the event overextends
                     break
 
-        # Process the leak 
-        if leak:
-            leak_mask = (df.index >= leak.start_time) & (df.index < leak.end_time)
-            df.loc[leak_mask, 'consumption_l'] += SIMULATION_CONFIG['time_resolution_minutes'] * leak.flow_rate_lpm
-            df.loc[leak_mask, 'is_leak'] = 1
+        # Process all leaks
+        if leaks:
+            for leak in leaks:
+                leak_mask = (df.index >= leak.start_time) & (df.index < leak.end_time)
+                df.loc[leak_mask, 'consumption_l'] += SIMULATION_CONFIG['time_resolution_minutes'] * leak.flow_rate_lpm
+                df.loc[leak_mask, 'is_leak'] = 1
         
         df['is_leak'] = df['is_leak'].astype(int)
         df.reset_index(inplace=True)
@@ -212,6 +284,8 @@ def main():
     all_households_df = []
     #List to save the events
     all_events_list = []
+    #List to save the leaks
+    all_leaks_list = []
 
     print(f"Starting the simulation for {NUM_HOUSEHOLDS_TO_SIMULATE} households of all tipes ")
 
@@ -226,13 +300,14 @@ def main():
 
         #Step 2: Simulate consumption events and possible leaks
         events = simulator.simulate_events(simulation_days=SIMULATION_CONFIG["simulation_days"])
-        leak = simulator.inject_leak(simulation_days=SIMULATION_CONFIG["simulation_days"])
+        leaks = simulator.inject_leak(simulation_days=SIMULATION_CONFIG["simulation_days"])
 
         #Step 3: Add the data to a temporary series
-        consumption_df = simulator.aggregate_to_time_series(events, leak, simulation_days=SIMULATION_CONFIG["simulation_days"])
+        consumption_df = simulator.aggregate_to_time_series(events, leaks, simulation_days=SIMULATION_CONFIG["simulation_days"])
 
         all_households_df.append(consumption_df)
         all_events_list.extend(events)
+        all_leaks_list.extend(leaks)
 
     print("\n Simulation completed for all the households✅")
     final_dataset = pd.concat(all_households_df, ignore_index=True)
@@ -255,7 +330,7 @@ def main():
     total_consumption = final_dataset['consumption_l'].sum()
     print(f"   💧 Total consumption across all households: {total_consumption:,.2f} L")
     
-    # --- LEAK STATISTICS CALCULATION ---
+    # --- LEAK STATISTICS CALCULATION (CORREGIDO) ---
     # Count how many unique households had a leak injected.
     households_with_leaks = final_dataset[final_dataset['is_leak'] == 1]['household_id'].nunique()
     
@@ -263,19 +338,20 @@ def main():
         print(f"\n   --- Leak Statistics ---")
         print(f"   🚨 Leaks were injected in {households_with_leaks} out of {total_households} households ({households_with_leaks/total_households:.1%}).")
 
-        # Calculate the total consumption attributable ONLY to leaks.
-        # For each row where 'is_leak' is 1, the leak consumption is constant.
-        leak_consumption_per_period = SIMULATION_CONFIG['time_resolution_minutes'] * SIMULATION_CONFIG['leak_flow_rate']
+        # CÁLCULO CORREGIDO:
+        # Como ahora el caudal de fuga es variable, calculamos el consumo total de fugas
+        # sumando el consumo real de cada objeto LeakEvent generado.
+        total_leak_consumption = sum(l.total_consumption_l for l in all_leaks_list)
         
-        # Count the total number of 15-minute periods that have a leak.
-        # Since 'is_leak' is 0 or 1, sum() is a fast way to count the 1s.
+        # Calculate percentage of data points with leaks (CRITICAL for model training)
         total_leak_periods = final_dataset['is_leak'].sum()
-        
-        # The total consumption from leaks is the number of periods times the consumption in each one.
-        total_leak_consumption = total_leak_periods * leak_consumption_per_period
+        leak_data_percentage = (total_leak_periods / len(final_dataset)) * 100
         
         print(f"   💧 Total consumption from leaks only: {total_leak_consumption:,.2f} L")
         print(f"   💧 Percentage of total consumption due to leaks: {total_leak_consumption / total_consumption:.1%}")
+        print(f"   📊 Total number of leak events: {len(all_leaks_list)}")
+        print(f"   📈 Data points with leaks: {total_leak_periods:,} out of {len(final_dataset):,} ({leak_data_percentage:.2f}%)")
+        print(f"   ⚖️  Class balance ratio (Normal:Leak): {(len(final_dataset) - total_leak_periods) / total_leak_periods:.1f}:1")
 
     else:
         print("\n   🚨 No leaks were injected in this simulation batch.")
@@ -287,7 +363,7 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
     
     # os.path.join creates a file path that is compatible with any OS (Windows, Mac, Linux).
-    output_path = os.path.join(output_dir, f"mixed_population_dataset_{NUM_HOUSEHOLDS_TO_SIMULATE}_households.csv")
+    output_path = os.path.join(output_dir, f"mixed_population_dataset_{NUM_HOUSEHOLDS_TO_SIMULATE}_households_more_leaks.csv")
     
     # Export the DataFrame to a CSV file.
     # index=False prevents pandas from writing the DataFrame index as a column in the CSV.

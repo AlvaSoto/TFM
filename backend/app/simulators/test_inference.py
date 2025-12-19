@@ -7,11 +7,11 @@ from sklearn.metrics import classification_report, roc_auc_score
 
 #Routes configuration
 #The brain of the neuronal network
-MODEL_PATH = "GCP_model/resultados/Run_Ultimate/checkpoints/best_model.keras"
+MODEL_PATH = "Azure_model_new_data/resultados/Run_Ultimate/checkpoints/best_model.keras"
 #The scaler remembers the Media and the Deviation of the data used for training
-SCALER_PATH = "GCP_model/resultados/Run_Ultimate/scaler.joblib"
+SCALER_PATH = "Azure_model_new_data/resultados/Run_Ultimate/results/scaler.joblib"
 
-DATA_PATH = "../../data/mixed_population_dataset_160_households.csv"
+DATA_PATH = "../../data/mixed_population_dataset_160_households_more_leaks.csv"
 
 #Parameters that need to be the same as those used during training
 SEQUENCE_LENGTH = 96  # Number of time steps in each input sequence
@@ -65,7 +65,7 @@ def create_sequences(df, feature_cols):
             sequences.append(values[s:s + SEQUENCE_LENGTH])
             labels.append(int(np.max(leak_flags[s:s + SEQUENCE_LENGTH])))
 
-        return np.stack(sequences), np.array(labels, dtype=int)
+    return np.stack(sequences), np.array(labels, dtype=int)
     
 if __name__ == "__main__":
 
@@ -73,23 +73,34 @@ if __name__ == "__main__":
     model = load_model(MODEL_PATH)
     print(f"Loading scaler from {SCALER_PATH}...")
     scaler = joblib.load(SCALER_PATH)
-    #Load the data
+    
+    # --- OJO AQUÍ: Asegúrate de que este es el CSV nuevo con más fugas ---
+    # Si usas el antiguo, los resultados serán peores.
+    print(f"Reading data from {DATA_PATH}...") 
     df = pd.read_csv(DATA_PATH)
+    
     df, cols = engineer_features(df)
     print("Scaling the data")
-    #Scaling the data
     df[cols] = scaler.transform(df[cols])
 
     #Creating the sequences
     X, y = create_sequences(df, cols)
-    print(f"Total sequences for the test: {len(X)}")
+    print(f"Total sequences generated: {len(X)}")
+
+    # Cortar para Test (Último 10%)
+    test_split_idx = int(len(X) * 0.90)
+    
+    X_test = X[test_split_idx:]
+    y_test = y[test_split_idx:] # <--- ESTA ES LA VARIABLE CORRECTA
+    
+    print(f"Testing on {len(X_test)} sequences (The Test Set)...") 
 
     print("The model is thinking")
-    reconstructions = model.predict(X, batch_size=512)
+    reconstructions = model.predict(X_test, batch_size=512)
 
-    mse = np.mean(np.power(X - reconstructions, 2), axis=(1,2))
+    mse = np.mean(np.power(X_test - reconstructions, 2), axis=(1,2))
 
-    threshold = np.percentile(mse, 99.0)
+    threshold = np.percentile(mse, 96.0)
     print(f"Anomaly detection threshold set at: {threshold:.4f}")
 
     #Results
@@ -97,13 +108,16 @@ if __name__ == "__main__":
 
     print("\n" + "="*40)
     print("Results of the local inference:")
-    print(classification_report(y, y_pred, target_names=["Normal", "Fuga"]))
-    print(f"ROC-AUC: {roc_auc_score(y, mse):.4f}")
     
-    # I. Gráfica de error (Opcional)
+    # --- CORRECCIÓN AQUÍ: Usar y_test en lugar de y ---
+    print(classification_report(y_test, y_pred, target_names=["Normal", "Fuga"]))
+    print(f"ROC-AUC: {roc_auc_score(y_test, mse):.4f}")
+    
+    # Gráfica de error
+    # --- CORRECCIÓN AQUÍ TAMBIÉN ---
     plt.figure(figsize=(10, 6))
-    plt.hist(mse[y==0], bins=50, alpha=0.5, label='Normal', density=True)
-    plt.hist(mse[y==1], bins=50, alpha=0.5, label='Fuga', color='red', density=True)
+    plt.hist(mse[y_test==0], bins=50, alpha=0.5, label='Normal', density=True)
+    plt.hist(mse[y_test==1], bins=50, alpha=0.5, label='Fuga', color='red', density=True)
     plt.axvline(threshold, color='k', linestyle='--', label='Umbral')
     plt.title("Distribución del Error de Reconstrucción")
     plt.legend()
