@@ -56,6 +56,7 @@ class WaterConsumptionSimulator:
         #Asign a timestamp for each event
         for _ in range(num_events): #_ indicates that it does not matter the i (the loop counter)
             day = random.randint(0, simulation_days -1) #I choose a random value within the simulation range
+            # Imagine a roulette with 24 slots (hours) with different probabilities, the slot of 8am is more probable than 3am
             hour = np.random.choice(24, p=event_config['hourly_probability'])
             minute = random.randint(0,59)
             second = random.randint(0,59)
@@ -69,6 +70,10 @@ class WaterConsumptionSimulator:
     def _generate_event_characteristics(self, event_config: dict) -> Tuple[float, float]:
         """
         It generates the duration and the water flow per liter for a new event but randomly
+
+        It returns a tuple with (duration, flow_rate)
+        1. Duration in minutes
+        2. Flow rate in L/min
         """
         # Duratio generation using a Normal distribution
         duration = max(0.1, np.random.normal(event_config['duration_mean'], event_config['duration_std']))
@@ -121,15 +126,29 @@ class WaterConsumptionSimulator:
         Returns a list of LeakEvent objects (can be empty if no leaks)
         """
 
+        """
+        1. Decide if a household will have leaks or not
+        """
+
         # Decide if this household will have leaks
+        # it is set to a leak_probability of 0.7, which means 70% of households will have leaks
+        # it follows a Bernoulli distribution (yes/no)
+        # if the number is higher than 0.7, no leaks for this household
         if random.random() > SIMULATION_CONFIG["leak_probability"]:
             return []
         
         total_simulation_hours = simulation_days * 24
         leaks = []
+
+        """
+        2. Then if a household will have leaks,determine how many leaks and how serious they are
+        """
         
         # Determine number of leaks for this household (Poisson distribution)
+        # it is set to an average of 1.5 leaks per household following a Poisson distribution
+        # that means that some households will have 1 leak, some 2, some 3, etc. in 6 months
         num_leaks = np.random.poisson(SIMULATION_CONFIG["leaks_per_household_mean"])
+        # Ensure at least one leak
         num_leaks = max(1, num_leaks)  # At least 1 leak if household is selected
         
         # Track used time slots to prevent overlapping leaks
@@ -142,6 +161,14 @@ class WaterConsumptionSimulator:
                 SIMULATION_CONFIG["leak_flow_rate_std"]
             ))
             
+        """
+        3. Here we use the clamping o recorte
+
+        Why? 
+        
+        - Because the normal distribution could say a leak last 500h, but i have limited it to 120h max
+        - Because the normal distribution could say a leak last 10h, but i have limited it to 24h min
+        """
             leak_duration_hours = max(
                 SIMULATION_CONFIG["leak_min_duration_hours"],
                 min(
@@ -157,6 +184,12 @@ class WaterConsumptionSimulator:
             max_attempts = 50
             attempt = 0
             valid_slot = False
+        
+        """
+        4. Imagine thay i have to place 2 leaks in a calendar of 180 days, but the 2 leaks cannot overlap.
+        Then i have to check that the new leak does not overlap with the previous one. If it does, i have to try again
+        until i find a valid slot or reach the maximum number of attempts: 50
+        """
             
             while attempt < max_attempts and not valid_slot:
                 start_hour_offset = random.randint(0, max(1, total_simulation_hours - int(leak_duration_hours)))
@@ -178,6 +211,11 @@ class WaterConsumptionSimulator:
             
             if not valid_slot:
                 continue  # Skip this leak if we can't find a valid slot
+        
+        """
+        5. Now the code decides if the leak is intermittent (cistern that leaks water only intermittently / 12h on, 12h off) 
+        or continuous (a broken pipe that leaks water all the time)
+        """
             
             # Check if this leak should be intermittent
             is_intermittent = random.random() < SIMULATION_CONFIG["leak_intermittent_probability"]

@@ -1,5 +1,19 @@
 import numpy as np #ignore
 import pandas as pd
+import os
+from pathlib import Path
+
+class Settings:
+    # /Users/sotoa/Documents/TFM/Repository/TFM
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    DATA_DIR = BASE_DIR / "data" / "mixed_population_dataset_160_households_more_leaks.csv"
+    MODELS_DIR = BASE_DIR / "app" / "simulators" / "Azure_model_new_data/resultados/Run_Ultimate/checkpoints/best_model.keras"
+    SCALER_PATH = BASE_DIR / "app" / "simulators" / "Azure_model_new_data/resultados/Run_Ultimate/results/scaler.joblib"
+
+    LEAK_THRESHOLD: float = 0.5213  # Threshold for classifying a sequence as leak or no leak
+
+
+settings = Settings()
 
 """
 Global parameters for the simulation
