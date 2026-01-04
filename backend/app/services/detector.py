@@ -85,8 +85,13 @@ class LeakDetectorService:
 
         # Step 1: Feature Engineering
         df_processed, cols = self._engineer_features(df_raw)
+        # Keeping the timestamps to know when the anomalies happen
+        timestamps = df_processed['timestamp'].values
         # Step 2: Data Scaling
-        df_processed[cols] = self.scaler.transform(df_processed[cols])
+        try:
+            df_processed[cols] = self.scaler.transform(df_processed[cols])
+        except Exception as e:
+            return {"error": f"Scaling error: {str(e)}"}
         # Step 3: Create Sequences
         X = self._create_sequences(df_processed[cols].values)
 
@@ -101,15 +106,68 @@ class LeakDetectorService:
         threshold = settings.LEAK_THRESHOLD
         anomalies = (mse > threshold).astype(int)
 
+        # Extracting which days have anomalies
+        anomalous_dates = set()
+        bad_indexes = np.where(anomalies == 1)[0]
+        for idx in bad_indexes:
+            # idx * stride + sequence_lenght -1 gives the index of the last timestamp in the sequence
+            ts_index = idx * self.stride + self.sequence_length - 1
+            if ts_index < len(timestamps):
+                date_str = pd.to_datetime(timestamps[ts_index]).strftime("%Y-%m-%d")
+                anomalous_dates.add(date_str)
+
+        #Converting it into a sorted list
+        sorted_anomalous_dates = sorted(list(anomalous_dates))
+
+        #Calculating star/end dates for the LLM
+        start_date = sorted_anomalous_dates[0] if sorted_anomalous_dates else None
+        end_date = sorted_anomalous_dates[-1] if sorted_anomalous_dates else None
+
+        num_anomalies = int(np.sum(anomalies))
+        total_sequences = len(X)
+        percentage_anomalies = round((num_anomalies / total_sequences) * 100, 2)
+        is_leak = bool(num_anomalies > 5)  # If more than 5 anomalous sequences, flag as leak
+
+        #Extracting leak details for the LLM
+        leak_details = {
+            "worst_date": None,
+            "duration_hours": 0,
+            "max_error": 0.0
+        }
+
+        if is_leak:
+            #A. Find the moment with highest error
+            max_error_index = np.argmax(mse)
+            leak_details["max_error"] = round(float(mse[max_error_index]),2)
+
+            #mapping the sequence index back to timestamp
+            # The sequence 'i' ends in the index: i * stride + sequence_length - 1
+            timestamps_idx = max_error_index * self.stride + self.sequence_length - 1
+            if timestamps_idx < len(timestamps):
+                #Convert to readable date
+                date_val = pd.to_datetime(timestamps[timestamps_idx])
+                leak_details["worst_date"] = date_val.strftime("%Y-%m-%d %H:%M")
+            
+            #B. Calculate estimated duration of the leak
+            # Each anomaly detected is a window. As i use a stride of 4, each anomaly represents 1 hour of data (4 * 15min)
+            # num_anomalies * 1 hour is a good estimation of the leak duration
+            leak_details["duration_hours"] = num_anomalies
+
+
         #Packing results for the frontend
 
         return {
-            "status": "success",
-            "total_sequences": len(X),
-            "anomalies_detected": int(np.sum(anomalies)),
-            "percentage_anomalies": round((np.sum(anomalies) / len(X)) * 100, 2),
+            "total_sequences_analyzed": total_sequences,
+            "anomalies_detected": num_anomalies,
+            "percentage_anomalies": percentage_anomalies,
             "mse_values": mse.tolist(),
-            "threshold": threshold,
-            "is_leak": bool(np.sum(anomalies) > 5)
+            "threshold_used": threshold,
+            "is_leak_detected": is_leak,
+            "leak_details": leak_details,
+            "anomalous_days": sorted_anomalous_dates,
+            "leak_period": {
+                "start": start_date,
+                "end": end_date
+            }
         }
 detector_service = LeakDetectorService()

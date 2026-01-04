@@ -2,6 +2,8 @@ import numpy as np #ignore
 import pandas as pd
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv()
 
 class Settings:
     # /Users/sotoa/Documents/TFM/Repository/TFM
@@ -11,6 +13,8 @@ class Settings:
     SCALER_PATH = BASE_DIR / "app" / "simulators" / "Azure_model_new_data/resultados/Run_Ultimate/results/scaler.joblib"
 
     LEAK_THRESHOLD: float = 0.5213  # Threshold for classifying a sequence as leak or no leak
+
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
 
 settings = Settings()
