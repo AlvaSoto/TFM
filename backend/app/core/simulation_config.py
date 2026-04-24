@@ -14,7 +14,8 @@ class Settings:
 
     LEAK_THRESHOLD: float = 0.5213  # Threshold for classifying a sequence as leak or no leak
 
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    # OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")  # Comentado para pruebas
+    OPENAI_API_KEY: str = ""  # Desactivado temporalmente para no consumir API
 
 
 settings = Settings()

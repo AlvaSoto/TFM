@@ -161,14 +161,14 @@ class WaterConsumptionSimulator:
                 SIMULATION_CONFIG["leak_flow_rate_std"]
             ))
             
-        """
-        3. Here we use the clamping o recorte
+            """
+            3. Here we use the clamping o recorte
 
-        Why? 
-        
-        - Because the normal distribution could say a leak last 500h, but i have limited it to 120h max
-        - Because the normal distribution could say a leak last 10h, but i have limited it to 24h min
-        """
+            Why? 
+            
+            - Because the normal distribution could say a leak last 500h, but i have limited it to 120h max
+            - Because the normal distribution could say a leak last 10h, but i have limited it to 24h min
+            """
             leak_duration_hours = max(
                 SIMULATION_CONFIG["leak_min_duration_hours"],
                 min(
@@ -185,11 +185,11 @@ class WaterConsumptionSimulator:
             attempt = 0
             valid_slot = False
         
-        """
-        4. Imagine thay i have to place 2 leaks in a calendar of 180 days, but the 2 leaks cannot overlap.
-        Then i have to check that the new leak does not overlap with the previous one. If it does, i have to try again
-        until i find a valid slot or reach the maximum number of attempts: 50
-        """
+            """
+            4. Imagine thay i have to place 2 leaks in a calendar of 180 days, but the 2 leaks cannot overlap.
+            Then i have to check that the new leak does not overlap with the previous one. If it does, i have to try again
+            until i find a valid slot or reach the maximum number of attempts: 50
+            """
             
             while attempt < max_attempts and not valid_slot:
                 start_hour_offset = random.randint(0, max(1, total_simulation_hours - int(leak_duration_hours)))
@@ -212,10 +212,10 @@ class WaterConsumptionSimulator:
             if not valid_slot:
                 continue  # Skip this leak if we can't find a valid slot
         
-        """
-        5. Now the code decides if the leak is intermittent (cistern that leaks water only intermittently / 12h on, 12h off) 
-        or continuous (a broken pipe that leaks water all the time)
-        """
+            """
+            5. Now the code decides if the leak is intermittent (cistern that leaks water only intermittently / 12h on, 12h off) 
+            or continuous (a broken pipe that leaks water all the time)
+            """
             
             # Check if this leak should be intermittent
             is_intermittent = random.random() < SIMULATION_CONFIG["leak_intermittent_probability"]
