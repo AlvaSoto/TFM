@@ -35,13 +35,21 @@ class DataLoader:
             raise ValueError(f"No data found for household_id: {household_id}")
         return data.sort_values(by='timestamp').reset_index(drop=True)
 
-    def get_all_household_ids(self) -> list:
+    def get_all_household_ids(self, tenant: dict | None = None) -> list:
         """
-        Returns all unique IDs: contadores reales del piloto + dataset demo
+        IDs visibles: contadores reales del tenant + dataset demo (si le aplica).
+        tenant=None → todo (modo abierto / jobs internos).
         """
-        pilot_ids = self._store().meter_ids()
-        demo_ids = self.df['household_id'].unique().tolist()
-        return pilot_ids + [d for d in demo_ids if d not in pilot_ids]
+        if tenant is None:
+            pilot_ids = self._store().meter_ids()
+            demo_ids = self.df['household_id'].unique().tolist()
+            return pilot_ids + [d for d in demo_ids if d not in pilot_ids]
+
+        ids = self._store().meter_ids(tenant["id"])
+        if tenant.get("include_demo_dataset"):
+            demo_ids = self.df['household_id'].unique().tolist()
+            ids = ids + [d for d in demo_ids if d not in ids]
+        return ids
     
 data_loader = DataLoader()
     

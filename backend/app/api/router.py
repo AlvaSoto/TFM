@@ -40,6 +40,21 @@ app.include_router(router_consumption.router, prefix="/api/v1", tags=["Smart Wat
 from app.api import router_ingest
 app.include_router(router_ingest.router, prefix="/api/v1", tags=["Ingesta piloto"])
 
+# Autenticación multi-tenant de la consola
+from app.api import router_auth
+app.include_router(router_auth.router, prefix="/api/v1", tags=["Auth"])
+
+# Salud del servicio (para monitorización de uptime, sin auth)
+@app.get("/health")
+def health():
+    from app.repository.data_loader import data_loader
+    from app.services.fleet import fleet_service
+    return {
+        "status": "ok",
+        "demo_households": int(data_loader.df["household_id"].nunique()),
+        "scored": sum(1 for s in fleet_service._scores.values() if "error" not in s),
+    }
+
 @app.get("/")
 def root():
     return {"message": "Welcome to the Smart Water API. Visit /docs for documentation."}

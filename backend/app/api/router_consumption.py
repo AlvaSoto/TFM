@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Dict, Any
 
 # --- IMPORTS DE CAPA DE DATOS ---
@@ -15,6 +15,7 @@ from app.services.detector import detector_service
 from app.services.consumption import consumption_service
 from app.services.llm_service import advisor_service
 from app.services.fleet import fleet_service
+from app.api.router_auth import current_tenant
 
 router = APIRouter()
 
@@ -23,7 +24,7 @@ router = APIRouter()
 # ---------------------------------------------------------
 
 @router.get("/households")
-def list_households():
+def list_households(tenant: dict = Depends(current_tenant)):
     """
     Lista las casas y marca cuáles tienen fugas reales (Ground Truth) en el CSV.
     Es instantáneo porque no ejecuta el modelo, solo lee la columna 'is_leak'.
@@ -31,7 +32,7 @@ def list_households():
     try:
         # Unión de contadores reales del piloto (SQLite) + dataset demo (CSV)
         result = []
-        for hid in data_loader.get_all_household_ids():
+        for hid in data_loader.get_all_household_ids(tenant):
             result.append({
                 "id": hid,
                 "label": hid,
@@ -61,7 +62,8 @@ def get_available_regions():
 
 @router.get("/fleet/overview")
 def get_fleet_overview(
-    region: str = Query(default="Promedio Nacional", description="Región para valorar las pérdidas en €")
+    region: str = Query(default="Promedio Nacional", description="Región para valorar las pérdidas en €"),
+    tenant: dict = Depends(current_tenant),
 ):
     """
     Vista agregada para el operador de la gestora: KPIs de la flota completa
@@ -69,7 +71,7 @@ def get_fleet_overview(
     por severidad. Se sirve desde la caché de scoring (data/fleet_scores.json).
     """
     try:
-        return fleet_service.get_overview(region)
+        return fleet_service.get_overview(region, tenant)
     except Exception as e:
         print(f"Fleet overview error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -78,7 +80,8 @@ def get_fleet_overview(
 @router.post("/fleet/score")
 def score_fleet(
     limit: int = Query(default=10, ge=1, le=200, description="Máximo de hogares pendientes a puntuar"),
-    region: str = Query(default="Promedio Nacional")
+    region: str = Query(default="Promedio Nacional"),
+    tenant: dict = Depends(current_tenant),
 ):
     """
     Puntúa hasta `limit` hogares pendientes (ejecuta el modelo) y devuelve la
@@ -87,7 +90,7 @@ def score_fleet(
     """
     try:
         scored = fleet_service.score_batch(limit=limit)
-        overview = fleet_service.get_overview(region)
+        overview = fleet_service.get_overview(region, tenant)
         overview["newly_scored"] = scored
         return overview
     except Exception as e:
@@ -96,19 +99,19 @@ def score_fleet(
 
 
 @router.get("/fleet/trends")
-def get_fleet_trends():
+def get_fleet_trends(tenant: dict = Depends(current_tenant)):
     """
     Serie diaria agregada de la red: consumo total (m³) y nº de hogares con
     anomalía cada día. Para la gráfica de red de la vista Operaciones.
     """
     try:
-        return fleet_service.get_trends()
+        return fleet_service.get_trends(tenant)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/system/info")
-def get_system_info():
+def get_system_info(tenant: dict = Depends(current_tenant)):
     """
     Trazabilidad del sistema: qué modelo está desplegado, con qué umbral y de
     dónde sale, sobre qué dataset opera y las métricas de la última evaluación.
@@ -170,7 +173,8 @@ def get_consumption_dashboard(
     region: str = Query(
         default="Promedio Nacional",
         description="Region for water pricing. Defaults to 'Promedio Nacional'."
-    )
+    ),
+    tenant: dict = Depends(current_tenant),
 ):
     """
     Master Endpoint. Returns everything needed for the Frontend Dashboard:
@@ -181,7 +185,9 @@ def get_consumption_dashboard(
     - AI Advice
     """
     try:
-        # A. Cargar Datos
+        # A. Cargar Datos (verificando que el contador pertenece al tenant)
+        if household_id not in data_loader.get_all_household_ids(tenant):
+            raise HTTPException(status_code=404, detail=f"No data found for household_id: {household_id}")
         df_household = data_loader.get_household_data(household_id)
         if df_household is None or df_household.empty:
             raise HTTPException(status_code=404, detail=f"No data found for household_id: {household_id}")
@@ -270,10 +276,13 @@ def get_consumption_dashboard(
             }
         }
 
+    except HTTPException:
+        # Respetar los códigos ya decididos (404 de propiedad/inexistencia, etc.)
+        raise
     except ValueError as ve:
         # Errores de lógica (ej: columnas faltantes)
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         # Errores inesperados
-        print(f"Server Error: {str(e)}") 
+        print(f"Server Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

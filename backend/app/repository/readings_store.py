@@ -37,18 +37,32 @@ class ReadingsStore:
             c.execute("""
                 CREATE TABLE IF NOT EXISTS meter_meta (
                     meter_id TEXT PRIMARY KEY,
-                    last_cumulative REAL         -- último índice acumulado visto (contadores de índice)
+                    last_cumulative REAL,        -- último índice acumulado visto (contadores de índice)
+                    tenant_id TEXT DEFAULT 'demo' -- propietario del contador (multi-tenant)
                 )
             """)
+            # Migración suave para bases creadas antes del multi-tenant
+            cols = [r[1] for r in c.execute("PRAGMA table_info(meter_meta)")]
+            if "tenant_id" not in cols:
+                c.execute("ALTER TABLE meter_meta ADD COLUMN tenant_id TEXT DEFAULT 'demo'")
 
     def _conn(self):
         return sqlite3.connect(self._db_path)
 
     # ------------------------------------------------------------------
-    def insert_interval_batch(self, meter_id: str, rows: list) -> dict:
+    def _claim_meter(self, c, meter_id: str, tenant_id: str):
+        """Asigna el contador a su tenant; rechaza si ya pertenece a otro."""
+        row = c.execute("SELECT tenant_id FROM meter_meta WHERE meter_id = ?", (meter_id,)).fetchone()
+        if row is None:
+            c.execute("INSERT INTO meter_meta (meter_id, tenant_id) VALUES (?, ?)", (meter_id, tenant_id))
+        elif (row[0] or "demo") != tenant_id:
+            raise PermissionError(f"El contador '{meter_id}' pertenece a otro cliente")
+
+    def insert_interval_batch(self, meter_id: str, rows: list, tenant_id: str = "demo") -> dict:
         """rows: [(iso_timestamp, litros_del_intervalo), ...]. Idempotente."""
         inserted = 0
         with self._lock, self._conn() as c:
+            self._claim_meter(c, meter_id, tenant_id)
             for ts, liters in rows:
                 cur = c.execute(
                     "INSERT OR IGNORE INTO readings (meter_id, ts, consumption_l) VALUES (?, ?, ?)",
@@ -57,7 +71,7 @@ class ReadingsStore:
                 inserted += cur.rowcount
         return {"received": len(rows), "inserted": inserted, "duplicates": len(rows) - inserted}
 
-    def insert_cumulative_batch(self, meter_id: str, rows: list) -> dict:
+    def insert_cumulative_batch(self, meter_id: str, rows: list, tenant_id: str = "demo") -> dict:
         """
         rows: [(iso_timestamp, índice_acumulado_en_litros), ...] ordenados.
         Convierte el índice del contador en consumo por intervalo (diferencias).
@@ -65,6 +79,7 @@ class ReadingsStore:
         """
         rows = sorted(rows, key=lambda r: r[0])
         with self._lock, self._conn() as c:
+            self._claim_meter(c, meter_id, tenant_id)
             prev = c.execute(
                 "SELECT last_cumulative FROM meter_meta WHERE meter_id = ?", (meter_id,)
             ).fetchone()
@@ -89,9 +104,15 @@ class ReadingsStore:
         return {"received": len(rows), "inserted": inserted, "duplicates": 0}
 
     # ------------------------------------------------------------------
-    def meter_ids(self) -> list:
+    def meter_ids(self, tenant_id: str | None = None) -> list:
         with self._conn() as c:
-            return [r[0] for r in c.execute("SELECT DISTINCT meter_id FROM readings")]
+            if tenant_id is None:
+                return [r[0] for r in c.execute("SELECT DISTINCT meter_id FROM readings")]
+            return [r[0] for r in c.execute(
+                "SELECT DISTINCT r.meter_id FROM readings r "
+                "JOIN meter_meta m ON m.meter_id = r.meter_id WHERE m.tenant_id = ?",
+                (tenant_id,),
+            )]
 
     def get_meter_df(self, meter_id: str) -> pd.DataFrame:
         with self._conn() as c:

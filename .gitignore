@@ -76,3 +76,4 @@ asotobarja_PEC4.pdf
 
 # Excepción: la evaluación es pequeña y la consume /system/info
 !backend/data/ensemble_evaluation.json
+backend/backups/

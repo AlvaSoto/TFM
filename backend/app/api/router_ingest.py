@@ -22,20 +22,28 @@ from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Uplo
 from pydantic import BaseModel, Field
 
 from app.core.simulation_config import settings
+from app.core.tenants import load_tenants, tenant_by_api_key
 from app.repository.readings_store import readings_store
 
 router = APIRouter()
 
 
-def require_api_key(x_api_key: str = Header(default="")):
-    configured = settings.INGEST_API_KEY
-    if not configured:
+def ingest_tenant(x_api_key: str = Header(default="")) -> str:
+    """Resuelve el tenant dueño de la clave. Devuelve su tenant_id."""
+    # 1. Clave de un tenant registrado (multi-tenant)
+    tenant = tenant_by_api_key(x_api_key)
+    if tenant:
+        return tenant["id"]
+    # 2. Clave global heredada (single-tenant / demo) -> tenant 'demo'
+    if settings.INGEST_API_KEY and x_api_key == settings.INGEST_API_KEY:
+        return "demo"
+    if not settings.INGEST_API_KEY and not load_tenants():
+        # Sin ninguna clave configurada en el sistema: ingesta deshabilitada
         raise HTTPException(
             status_code=503,
-            detail="Ingesta deshabilitada: configura INGEST_API_KEY en el entorno del servidor.",
+            detail="Ingesta deshabilitada: configura INGEST_API_KEY o crea un tenant.",
         )
-    if x_api_key != configured:
-        raise HTTPException(status_code=401, detail="API key inválida (cabecera X-API-Key).")
+    raise HTTPException(status_code=401, detail="API key inválida (cabecera X-API-Key).")
 
 
 class Reading(BaseModel):
@@ -49,25 +57,29 @@ class ReadingsBatch(BaseModel):
     readings: list[Reading] = Field(min_length=1, max_length=50_000)
 
 
-@router.post("/ingest/readings", dependencies=[Depends(require_api_key)])
-def ingest_readings(batch: ReadingsBatch):
+@router.post("/ingest/readings")
+def ingest_readings(batch: ReadingsBatch, tenant_id: str = Depends(ingest_tenant)):
     try:
         rows = [(pd.to_datetime(r.timestamp).isoformat(), r.value) for r in batch.readings]
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Timestamp inválido: {e}")
 
-    if batch.value_type == "cumulative":
-        result = readings_store.insert_cumulative_batch(batch.meter_id, rows)
-    else:
-        result = readings_store.insert_interval_batch(batch.meter_id, rows)
+    try:
+        if batch.value_type == "cumulative":
+            result = readings_store.insert_cumulative_batch(batch.meter_id, rows, tenant_id)
+        else:
+            result = readings_store.insert_interval_batch(batch.meter_id, rows, tenant_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     return {"meter_id": batch.meter_id, **result}
 
 
-@router.post("/ingest/csv", dependencies=[Depends(require_api_key)])
+@router.post("/ingest/csv")
 async def ingest_csv(
     meter_id: str = Query(min_length=1, max_length=120),
     value_type: str = Query(default="interval", pattern="^(interval|cumulative)$"),
     file: UploadFile = File(...),
+    tenant_id: str = Depends(ingest_tenant),
 ):
     raw = await file.read()
     try:
@@ -86,14 +98,18 @@ async def ingest_csv(
     if not rows:
         raise HTTPException(status_code=422, detail="El CSV no contiene lecturas válidas.")
 
-    if value_type == "cumulative":
-        result = readings_store.insert_cumulative_batch(meter_id, rows)
-    else:
-        result = readings_store.insert_interval_batch(meter_id, rows)
+    try:
+        if value_type == "cumulative":
+            result = readings_store.insert_cumulative_batch(meter_id, rows, tenant_id)
+        else:
+            result = readings_store.insert_interval_batch(meter_id, rows, tenant_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     return {"meter_id": meter_id, "file": file.filename, **result}
 
 
-@router.get("/ingest/status", dependencies=[Depends(require_api_key)])
-def ingest_status():
+@router.get("/ingest/status")
+def ingest_status(tenant_id: str = Depends(ingest_tenant)):
     """Qué contadores reales hay y cuántas lecturas tiene cada uno."""
-    return {"meters": readings_store.status()}
+    own = set(readings_store.meter_ids(tenant_id))
+    return {"meters": [m for m in readings_store.status() if m["meter_id"] in own]}
