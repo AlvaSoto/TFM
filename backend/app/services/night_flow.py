@@ -55,6 +55,55 @@ def mnf_analysis(df: pd.DataFrame) -> dict:
     }
 
 
+def mnf_trending(df: pd.DataFrame, baseline_nights: int = 28, rel_delta: float = 0.15,
+                 abs_delta_l: float = 2.0, min_nights: int = 2) -> dict:
+    """
+    MNF-TRENDING: la versión del caudal mínimo nocturno para contadores
+    AGREGADOS (hoteles, pueblos/DMA), donde el suelo nocturno legítimo nunca
+    es cero (lavandería, riego, pérdidas de fondo) y la regla absoluta no vale.
+
+    Compara el mínimo nocturno de cada noche contra la MEDIANA MÓVIL de las
+    `baseline_nights` noches anteriores (mediana = robusta a noches con fuga).
+    Alerta si el suelo supera baseline*(1+rel_delta) + abs_delta_l durante
+    `min_nights` noches consecutivas.
+
+    En un hogar la línea base es ~0, así que degenera en la regla absoluta:
+    un único algoritmo para todos los segmentos.
+    """
+    ts = pd.to_datetime(df["timestamp"])
+    night_mask = ts.dt.hour.between(NIGHT_START_HOUR, NIGHT_END_HOUR)
+    night = df.loc[night_mask]
+    if night.empty:
+        return {"mnf_alert": False, "mnf_days": [], "max_night_floor_l": 0.0, "nights_analyzed": 0}
+
+    night_dates = ts.loc[night_mask].dt.strftime("%Y-%m-%d")
+    floors = night.groupby(night_dates.values)["consumption_l"].min().sort_index()
+
+    baseline = floors.rolling(baseline_nights, min_periods=7).median().shift(1)
+    threshold = baseline * (1 + rel_delta) + abs_delta_l
+    exceeds = (floors > threshold) & baseline.notna()
+
+    # Persistencia: noches que forman parte de una racha >= min_nights
+    flagged = []
+    run = []
+    for day, hit in exceeds.items():
+        if hit:
+            run.append(day)
+        else:
+            if len(run) >= min_nights:
+                flagged.extend(run)
+            run = []
+    if len(run) >= min_nights:
+        flagged.extend(run)
+
+    return {
+        "mnf_alert": len(flagged) >= min_nights,
+        "mnf_days": sorted(flagged),
+        "max_night_floor_l": round(float(floors.max()), 1),
+        "nights_analyzed": int(len(floors)),
+    }
+
+
 def combine_alert_level(ml_alert: bool, mnf_alert: bool) -> str:
     """
     Nivel de alerta del ensemble para la cola de intervención.
