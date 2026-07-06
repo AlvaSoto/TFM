@@ -1,9 +1,10 @@
+import json
 import numpy as np
 import pandas as pd
 import joblib
 from tensorflow.keras.models import load_model
 from app.core.simulation_config import settings
-from typing import Dict, List, Sequence, Tuple
+from app.ml.features import engineer_features, SEQUENCE_LENGTH
 
 class LeakDetectorService:
     def __init__(self):
@@ -12,52 +13,31 @@ class LeakDetectorService:
         #This is the trained LSTM Autoencoder model THE BRAIN
         self.model = load_model(settings.MODELS_DIR)
         print("Model loaded successfully.")
-        
+
         # Load the scaler
         print(f"Loading scaler from {settings.SCALER_PATH}")
         # This is the translator that normalises the data before feeding it to the model
         self.scaler = joblib.load(settings.SCALER_PATH)
         print("Scaler loaded successfully.")
 
+        # El umbral viaja junto al modelo: si el entrenamiento generó threshold.json
+        # (pipeline limpio, app/ml/train_clean.py) se usa ese; si no, el fallback de settings.
+        self.threshold = settings.LEAK_THRESHOLD
+        artifact = getattr(settings, "THRESHOLD_ARTIFACT", None)
+        if artifact is not None and artifact.exists():
+            self.threshold = float(json.loads(artifact.read_text())["threshold"])
+            print(f"Threshold loaded from artifact: {self.threshold}")
+        else:
+            print(f"Threshold artifact not found, using fallback: {self.threshold}")
+
         # The brain works with sequences of data, so we define the length of the blocks of data the model will process
-        self.sequence_length = 96  # Assuming 15-min intervals over 24 hours 96=4*24
+        self.sequence_length = SEQUENCE_LENGTH  # 15-min intervals over 24 hours 96=4*24
         self.stride = 4
 
-    def _engineer_features(self, data: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
-        print("Starting feature engineering")
-        df = data.copy()
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
-        df = df.sort_values(["household_id", "timestamp"]).reset_index(drop=True)
-
-        for col, period in [('hour', 24), ('dayofweek', 7)]:
-            df[f'{col}_sin'] = np.sin(2 * np.pi * getattr(df['timestamp'].dt, col) / period)
-            df[f'{col}_cos'] = np.cos(2 * np.pi * getattr(df['timestamp'].dt, col) / period)
-
-        df['is_weekend'] = (df['timestamp'].dt.dayofweek >= 5).astype(int)
-        # is_night: periodo donde suele haber fugas silenciosas (00:00 - 05:00)
-        df['is_night'] = df['timestamp'].dt.hour.between(0, 5, inclusive="both").astype(int)
-
-        grouped = df.groupby("household_id", sort=False)['consumption_l']
-
-        # Ventanas Deslizantes (Captura tendencias y variabilidad)
-        for window in [4, 8, 12, 24, 48, 96]:
-            rolling = grouped.rolling(window=window, min_periods=1)
-            rmean = rolling.mean().reset_index(level=0, drop=True)
-            rstd = rolling.std().reset_index(level=0, drop=True)
-            
-            df[f"rolling_mean_{window}"] = rmean
-            df[f"rolling_std_{window}"] = rstd
-            df[f"rolling_cv_{window}"] = rstd / (rmean + 1e-6) # Coeficiente de variación
-            df[f'diff_from_rolling_mean_{window}'] = df['consumption_l'] - rmean
-            
-        df.fillna(0, inplace=True)
-
-        # Lags (Comparación con ayer y la semana pasada)
-        for lag in [96, 96*7]:
-            df[f'consumption_lag_{lag}'] = grouped.shift(lag).fillna(0)
-        
-        feature_cols = [col for col in df.columns if col not in ['timestamp', 'is_leak', 'household_id']]
-        return df, feature_cols
+        # Caché de análisis: el dataset es estático, así que el resultado por hogar
+        # también lo es. Evita re-ejecutar el modelo en cada request (p.ej. al
+        # cambiar de región en el dashboard, que no afecta al ML).
+        self._analysis_cache: dict = {}
 
     def _create_sequences(self, values):
         """
@@ -82,9 +62,13 @@ class LeakDetectorService:
         """
         Process the data for a single household and return  the predicted leak probabilities
         """
+        # Step 0: cache hit — el dataset es estático, el análisis por hogar también
+        cache_key = str(df_raw["household_id"].iloc[0]) if "household_id" in df_raw.columns else None
+        if cache_key and cache_key in self._analysis_cache:
+            return self._analysis_cache[cache_key]
 
-        # Step 1: Feature Engineering
-        df_processed, cols = self._engineer_features(df_raw)
+        # Step 1: Feature Engineering (implementación compartida con el entrenamiento)
+        df_processed, cols = engineer_features(df_raw)
         # Keeping the timestamps to know when the anomalies happen
         timestamps = df_processed['timestamp'].values
         # Step 2: Data Scaling
@@ -102,8 +86,8 @@ class LeakDetectorService:
         reconstructions = self.model.predict(X, verbose=0)
         mse = np.mean(np.power(X - reconstructions, 2), axis=(1,2))
 
-        # Step 5: Detection (thresholding p96)
-        threshold = settings.LEAK_THRESHOLD
+        # Step 5: Detection (umbral cargado del artefacto de entrenamiento)
+        threshold = self.threshold
         anomalies = (mse > threshold).astype(int)
 
         # Extracting which days have anomalies
@@ -156,7 +140,7 @@ class LeakDetectorService:
 
         #Packing results for the frontend
 
-        return {
+        result = {
             "total_sequences_analyzed": total_sequences,
             "anomalies_detected": num_anomalies,
             "percentage_anomalies": percentage_anomalies,
@@ -170,4 +154,9 @@ class LeakDetectorService:
                 "end": end_date
             }
         }
+
+        if cache_key:
+            self._analysis_cache[cache_key] = result
+        return result
+
 detector_service = LeakDetectorService()

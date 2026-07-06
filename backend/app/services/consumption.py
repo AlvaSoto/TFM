@@ -23,10 +23,7 @@ class ConsumptionService:
         # 2. Calculate cost variable (Unit price * consumption)
         # I am using the regional price per cubic meter which includes supply and sanitation
         variable_cost = total_m3 * price_per_m3
-        # 3. Adding fixed monthly fee
-        total_cost = variable_cost + FIXED_MONTHLY_FEE
-
-        # 4. Taxes (IVA 10%)
+        # 3. Fixed monthly fee + taxes (IVA 10%)
         subtotal = variable_cost + FIXED_MONTHLY_FEE
         taxes = subtotal * 0.10
         total_cost = subtotal + taxes

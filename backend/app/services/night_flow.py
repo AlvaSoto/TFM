@@ -1,0 +1,64 @@
+"""
+Regla de Caudal Mínimo Nocturno (MNF, Minimum Night Flow).
+
+Es el método clásico de la industria (ver memoria, sección 2.3.1): durante la
+madrugada el consumo legítimo de un hogar debería tocar cero en algún momento.
+Si el caudal NUNCA baja de un suelo durante toda la ventana nocturna, hay agua
+circulando de forma continua: la firma física de una fuga.
+
+Se usa como CONFIRMADOR del modelo ML en el ensemble de la vista de flota:
+  - ML + MNF de acuerdo  -> alerta CONFIRMADA (alta precisión)
+  - solo uno de los dos  -> SOSPECHA (revisar)
+
+Es intencionadamente simple, explicable ante una gestora ("el contador no ha
+parado en toda la noche") y ejecutable en el propio contador (edge).
+"""
+import pandas as pd
+
+# Ventana nocturna: 01:00-05:59 (se evita medianoche, aún con actividad humana)
+NIGHT_START_HOUR = 1
+NIGHT_END_HOUR = 5
+
+# Suelo nocturno: si TODOS los intervalos de 15 min de la noche superan estos
+# litros, el agua no ha dejado de correr. 2 L/15min = 0.13 L/min, muy por
+# debajo de cualquier fuga relevante (0.3+ L/min) y por encima del ruido.
+FLOOR_LITERS_PER_INTERVAL = 2.0
+
+# Persistencia: nº mínimo de noches con suelo para considerar alerta MNF
+MIN_NIGHTS = 2
+
+
+def mnf_analysis(df: pd.DataFrame) -> dict:
+    """
+    Analiza el caudal mínimo nocturno de un hogar.
+
+    df: lecturas crudas con columnas timestamp (datetime) y consumption_l.
+    Devuelve las noches cuyo caudal nunca bajó del suelo y si constituyen alerta.
+    """
+    ts = pd.to_datetime(df["timestamp"])
+    night_mask = ts.dt.hour.between(NIGHT_START_HOUR, NIGHT_END_HOUR)
+    night = df.loc[night_mask].copy()
+    if night.empty:
+        return {"mnf_alert": False, "mnf_days": [], "max_night_floor_l": 0.0, "nights_analyzed": 0}
+
+    night_dates = ts.loc[night_mask].dt.strftime("%Y-%m-%d")
+    # Suelo de cada noche = mínimo de los intervalos de 15 min de esa madrugada
+    floors = night.groupby(night_dates.values)["consumption_l"].min()
+
+    mnf_days = sorted(floors[floors > FLOOR_LITERS_PER_INTERVAL].index.tolist())
+
+    return {
+        "mnf_alert": len(mnf_days) >= MIN_NIGHTS,
+        "mnf_days": mnf_days,
+        "max_night_floor_l": round(float(floors.max()), 1),
+        "nights_analyzed": int(len(floors)),
+    }
+
+
+def combine_alert_level(ml_alert: bool, mnf_alert: bool) -> str:
+    """Nivel de alerta del ensemble para la cola de intervención."""
+    if ml_alert and mnf_alert:
+        return "CONFIRMADA"
+    if ml_alert or mnf_alert:
+        return "SOSPECHA"
+    return "OK"

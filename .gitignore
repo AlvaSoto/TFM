@@ -66,3 +66,10 @@ htmlcov/
 # Data files (large CSV files - can be regenerated)
 backend/data/*.csv
 !backend/data/.gitkeep
+
+# === Datos y artefactos generados (se regeneran; el dataset supera el límite de GitHub) ===
+backend/data/
+backend/app/simulators/**/backup_modelo_antiguo*/
+
+# Documentos personales
+asotobarja_PEC4.pdf

@@ -8,10 +8,23 @@ class LLMAdvisorService:
             self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
         else:
             print("⚠️ AVISO: No se ha configurado OPENAI_API_KEY.")
+        # Caché de informes: mismo hogar + mismo estado de fuga + misma región
+        # => mismo informe. Evita pagar una llamada al LLM por cada carga del dashboard.
+        self._report_cache: dict = {}
 
-    def generate_report(self, household_id: str, leak_data: dict, kpis: dict, benchmark: dict) -> str:
+    def generate_report(self, household_id: str, leak_data: dict, kpis: dict, benchmark: dict,
+                        loss_estimate: dict | None = None) -> str:
         if not self.client:
             return "Asistente desactivado: Configura la API Key."
+
+        cache_key = (
+            household_id,
+            leak_data.get("is_leak_detected", False),
+            leak_data.get("anomalies_detected", 0),
+            kpis.get("region_used", ""),
+        )
+        if cache_key in self._report_cache:
+            return self._report_cache[cache_key]
 
         # 1. Extraer datos de la Fuga (Fechas y Duración)
         is_leak = leak_data.get("is_leak_detected", False)
@@ -36,7 +49,15 @@ class LLMAdvisorService:
             leak_status = "El sistema funciona con normalidad. No hay fugas activas."
 
         horas_anomalas = leak_data.get('leak_details', {}).get('duration_hours', 0)
-        coste_estimado_fuga = round(horas_anomalas * 72 * (water_price / 1000), 2) # 72L/h * precio m3
+        # Pérdida estimada a partir de los DATOS del hogar (exceso sobre su línea base
+        # en los días anómalos), calculada por FleetService y pasada por el router.
+        # Fallback al cálculo antiguo (72 L/h) solo si no llega la estimación.
+        if loss_estimate and loss_estimate.get("liters") is not None:
+            litros_perdidos = loss_estimate["liters"]
+            coste_estimado_fuga = round(litros_perdidos / 1000 * water_price, 2)
+        else:
+            litros_perdidos = round(horas_anomalas * 72, 1)
+            coste_estimado_fuga = round(horas_anomalas * 72 * (water_price / 1000), 2)
 
         # 4. El Prompt Maestro
         prompt = f"""
@@ -51,7 +72,7 @@ class LLMAdvisorService:
         2. ECONOMÍA:
            - Factura mensual promedio: {kpis['monthly_bill_estimate']['total_bill_eur']} €.
            - Precio agua: {water_price} €/m3.
-           - ESTIMACIÓN DE PÉRDIDA: Basado en las horas anómalas, se estima un sobrecoste acumulado de aprox. {coste_estimado_fuga} € debido a la ineficiencia.
+           - ESTIMACIÓN DE PÉRDIDA: {litros_perdidos} litros de exceso sobre la línea base del hogar en los días anómalos, un sobrecoste acumulado de aprox. {coste_estimado_fuga} €.
 
         3. CONTEXTO SOCIAL:
            - El usuario gasta más agua que el {benchmark['percentile']}% de sus vecinos.
@@ -81,7 +102,9 @@ class LLMAdvisorService:
                 temperature=0.7,
                 max_tokens=400
             )
-            return response.choices[0].message.content
+            report = response.choices[0].message.content
+            self._report_cache[cache_key] = report
+            return report
 
         except Exception as e:
             print(f"Error OpenAI: {e}")

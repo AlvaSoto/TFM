@@ -8,14 +8,20 @@ load_dotenv()
 class Settings:
     # /Users/sotoa/Documents/TFM/Repository/TFM
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    # Dataset regenerado 2026-07-04 con la config de fugas de la memoria
+    # (1.2 L/min, 24-120h, 70% hogares, 180 días). OJO: el fichero
+    # mixed_population_dataset_160_households.csv (sin more_leaks) es la
+    # generación Fase-1 (micro-fugas 0.2 L/min) — no emparejar con el modelo.
     DATA_DIR = BASE_DIR / "data" / "mixed_population_dataset_160_households_more_leaks.csv"
     MODELS_DIR = BASE_DIR / "app" / "simulators" / "Azure_model_new_data/resultados/Run_Ultimate/checkpoints/best_model.keras"
     SCALER_PATH = BASE_DIR / "app" / "simulators" / "Azure_model_new_data/resultados/Run_Ultimate/results/scaler.joblib"
+    # Artefacto de umbral generado por el pipeline de entrenamiento limpio (app/ml/train_clean.py).
+    # Si existe, el detector carga el umbral de aquí en lugar de usar LEAK_THRESHOLD.
+    THRESHOLD_ARTIFACT = BASE_DIR / "app" / "simulators" / "Azure_model_new_data/resultados/Run_Ultimate/results/threshold.json"
 
-    LEAK_THRESHOLD: float = 0.5213  # Threshold for classifying a sequence as leak or no leak
+    LEAK_THRESHOLD: float = 0.5213  # Fallback si no existe THRESHOLD_ARTIFACT
 
-    # OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")  # Comentado para pruebas
-    OPENAI_API_KEY: str = ""  # Desactivado temporalmente para no consumir API
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
 
 settings = Settings()

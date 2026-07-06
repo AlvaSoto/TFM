@@ -2,140 +2,114 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   Design tokens — paleta de dataviz validada (CVD-safe)
+   Serie principal: azul #2a78d6 · Estado: good/warning/critical
+   Tinta: primaria #0b0b0b · secundaria #52514e · muted #898781
+   ============================================================ */
 @layer base {
   :root {
     --background: 210 40% 98%;
     --foreground: 222 47% 11%;
-    
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
-    
-    --primary: 199 89% 48%; /* Azul Agua */
+    --primary: 199 89% 48%;
     --primary-foreground: 210 40% 98%;
-    
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222 47% 11.2%;
-    
     --muted: 210 40% 96.1%;
     --muted-foreground: 215 16% 47%;
-    
     --accent: 210 40% 96.1%;
     --accent-foreground: 222 47% 11.2%;
-    
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-
     --success: 142 76% 36%;
     --warning: 38 92% 50%;
-
     --radius: 0.75rem;
+
+    /* Paleta dataviz (referencia validada, modo claro) */
+    --viz-series-1: #2a78d6;
+    --viz-series-1-deep: #104281;
+    --viz-series-1-soft: #cde2fb;
+    --viz-status-good: #0ca30c;
+    --viz-status-warning: #fab219;
+    --viz-status-critical: #d03b3b;
+    --viz-ink-primary: #0b0b0b;
+    --viz-ink-secondary: #52514e;
+    --viz-ink-muted: #898781;
+    --viz-grid: #e1e0d9;
+    --viz-surface: #fcfcfb;
+    --page-plane: #f6f7f9;
+    --sidebar: #0f1a2b;
+    --sidebar-hover: #1a2a42;
+    --sidebar-active: #21354f;
   }
 }
 
 body {
-  @apply bg-background text-foreground;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  @apply text-foreground;
+  background: var(--page-plane);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* === ANIMACIONES PROFESIONALES === */
+/* Cifras alineadas en tablas y ejes */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* === ANIMACIONES === */
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes slide-in {
-  from { opacity: 0; transform: translateX(-20px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes pulse-glow {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
-}
-
 .animate-fade-in {
-  animation: fade-in 0.6s ease-out;
+  animation: fade-in 0.4s ease-out;
 }
 
-.animate-slide-in {
-  animation: slide-in 0.5s ease-out;
+/* === SUPERFICIES === */
+.card {
+  background: #ffffff;
+  border: 1px solid rgba(11, 11, 11, 0.08);
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgba(15, 26, 43, 0.04), 0 8px 24px -12px rgba(15, 26, 43, 0.08);
 }
 
-/* === CLASES DE UTILIDAD PARA TARJETAS === */
+/* Compatibilidad con componentes existentes */
 .card-shadow {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 10px 25px -5px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 1px 2px rgba(15, 26, 43, 0.04), 0 8px 24px -12px rgba(15, 26, 43, 0.08);
 }
 
 .card-shadow-lg {
-  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.1), 0 2px 10px -2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 6px rgba(15, 26, 43, 0.06), 0 16px 40px -16px rgba(15, 26, 43, 0.12);
 }
 
-/* === GRADIENTES MODERNOS === */
-.ai-gradient {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-  position: relative;
+/* === SKELETON LOADING === */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
 }
 
-.ai-gradient::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
-  opacity: 0;
-  transition: opacity 0.3s ease;
+.skeleton {
+  border-radius: 0.5rem;
+  background: linear-gradient(90deg, #eef0f3 25%, #f7f8fa 50%, #eef0f3 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite linear;
 }
 
-.ai-gradient:hover::before {
-  opacity: 1;
-}
-
-.gradient-blue {
-  background: linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%);
-}
-
-.gradient-emerald {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-}
-
-.gradient-amber {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-}
-
-/* === GLASSMORPHISM === */
-.glass {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-/* === MEJORAS DE INTERACCIÓN === */
-.btn-primary {
-  @apply bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95;
-}
-
-.btn-primary:disabled {
-  @apply opacity-50 cursor-not-allowed hover:scale-100 hover:shadow-lg;
-}
-
-/* === SCROLLBAR PERSONALIZADO === */
+/* === SCROLLBAR === */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 4px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 4px;
-  transition: background 0.2s;
 }
 
 ::-webkit-scrollbar-thumb:hover {
