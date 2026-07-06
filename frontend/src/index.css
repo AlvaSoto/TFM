@@ -2,45 +2,116 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   Design tokens — paleta de dataviz validada (CVD-safe)
+   Serie principal: azul #2a78d6 · Estado: good/warning/critical
+   Tinta: primaria #0b0b0b · secundaria #52514e · muted #898781
+   ============================================================ */
 @layer base {
   :root {
     --background: 210 40% 98%;
     --foreground: 222 47% 11%;
-    
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
-    
-    --primary: 199 89% 48%; /* Azul Agua */
+    --primary: 199 89% 48%;
     --primary-foreground: 210 40% 98%;
-    
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222 47% 11.2%;
-    
     --muted: 210 40% 96.1%;
     --muted-foreground: 215 16% 47%;
-    
     --accent: 210 40% 96.1%;
     --accent-foreground: 222 47% 11.2%;
-    
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-
     --success: 142 76% 36%;
     --warning: 38 92% 50%;
-
     --radius: 0.75rem;
+
+    /* Paleta dataviz (referencia validada, modo claro) */
+    --viz-series-1: #2a78d6;
+    --viz-series-1-deep: #104281;
+    --viz-series-1-soft: #cde2fb;
+    --viz-status-good: #0ca30c;
+    --viz-status-warning: #fab219;
+    --viz-status-critical: #d03b3b;
+    --viz-ink-primary: #0b0b0b;
+    --viz-ink-secondary: #52514e;
+    --viz-ink-muted: #898781;
+    --viz-grid: #e1e0d9;
+    --viz-surface: #fcfcfb;
+    --page-plane: #f6f7f9;
+    --sidebar: #0f1a2b;
+    --sidebar-hover: #1a2a42;
+    --sidebar-active: #21354f;
   }
 }
 
 body {
-  @apply bg-background text-foreground;
+  @apply text-foreground;
+  background: var(--page-plane);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Clases de utilidad para las tarjetas */
+/* Cifras alineadas en tablas y ejes */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* === ANIMACIONES === */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out;
+}
+
+/* === SUPERFICIES === */
+.card {
+  background: #ffffff;
+  border: 1px solid rgba(11, 11, 11, 0.08);
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgba(15, 26, 43, 0.04), 0 8px 24px -12px rgba(15, 26, 43, 0.08);
+}
+
+/* Compatibilidad con componentes existentes */
 .card-shadow {
-  box_shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 2px rgba(15, 26, 43, 0.04), 0 8px 24px -12px rgba(15, 26, 43, 0.08);
 }
 
-.ai-gradient {
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+.card-shadow-lg {
+  box-shadow: 0 2px 6px rgba(15, 26, 43, 0.06), 0 16px 40px -16px rgba(15, 26, 43, 0.12);
+}
+
+/* === SKELETON LOADING === */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton {
+  border-radius: 0.5rem;
+  background: linear-gradient(90deg, #eef0f3 25%, #f7f8fa 50%, #eef0f3 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+
+/* === SCROLLBAR === */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

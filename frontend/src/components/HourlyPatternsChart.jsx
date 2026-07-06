@@ -12,31 +12,33 @@ const HourlyPatternsChart = ({ data }) => {
   }));
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-      <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
-        🕒 Patrón de Consumo Horario (Media)
-      </h3>
-      
+    <div className="card p-6 h-full">
+      <h3 className="text-base font-bold text-slate-900 mb-1">Patrón horario</h3>
+      <p className="text-xs text-slate-500 mb-4">Consumo medio por hora del día</p>
+
       <div style={{ width: '100%', height: 300 }}>
         <ResponsiveContainer>
           <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb"/>
-            <XAxis dataKey="hour" fontSize={11} stroke="#9ca3af" interval={2} />
-            <YAxis fontSize={12} stroke="#9ca3af" tickFormatter={(v) => `${v} L`}/>
-            <Tooltip 
-              cursor={{fill: '#f3f4f6'}}
-              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e1e0d9" />
+            <XAxis dataKey="hour" fontSize={11} stroke="#898781" interval={2}
+                   tickLine={false} axisLine={false} />
+            <YAxis fontSize={11} stroke="#898781" tickFormatter={(v) => `${v} L`}
+                   tickLine={false} axisLine={false} />
+            <Tooltip
+              cursor={{ fill: '#f1f5f9' }}
+              contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
             />
-            <Bar dataKey="litros" radius={[4, 4, 0, 0]}>
+            <Bar dataKey="litros" radius={[3, 3, 0, 0]}>
               {chartData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.isPeak ? '#8b5cf6' : '#93c5fd'} />
+                /* Énfasis en la hora punta con un paso oscuro del MISMO azul (no otro tono) */
+                <Cell key={`cell-${index}`} fill={entry.isPeak ? '#104281' : '#86b6ef'} />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-sm text-gray-500 mt-4">
-        * La barra morada indica la hora punta promedio.
+      <p className="text-xs text-slate-400 mt-3">
+        La barra oscura marca la hora punta promedio del hogar.
       </p>
     </div>
   );

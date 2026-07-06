@@ -27,8 +27,9 @@ const BillHistory = ({ history, currentRegion }) => {
             {history.slice(0, 5).map((bill, i) => ( // Mostramos solo los últimos 5
               <tr key={i} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 font-medium text-gray-800">{bill.month_name}</td>
-                <td className="px-4 py-3">{bill.consumption_l} L</td>
-                <td className="px-4 py-3 text-right font-bold text-slate-700">
+                {/* El backend envía total_liters (antes se leía consumption_l y salía vacío) */}
+                <td className="px-4 py-3 tabular">{Number(bill.total_liters).toLocaleString('es-ES')} L</td>
+                <td className="px-4 py-3 text-right font-bold text-slate-700 tabular">
                   {bill.total_bill} €
                 </td>
               </tr>

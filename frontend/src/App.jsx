@@ -1,194 +1,178 @@
 import { useState, useEffect } from 'react';
 import { getHouseholds, analyzeHousehold, getRegions } from './services/api';
-import { Droplets, Activity } from 'lucide-react';
+import { Droplets, LayoutDashboard, User, ShieldCheck, MapPin } from 'lucide-react';
 
-// --- COMPONENTES ---
-import AlertMessage from './components/AlertMessage';
-import HouseholdSelector from './components/HouseholdSelector';
-import RegionSelector from './components/RegionSelector';
-import LoadingSpinner from './components/LoadingSpinner';
+import FleetOverview from './components/FleetOverview';
+import HouseholdView from './components/HouseholdView';
+import SystemPanel from './components/SystemPanel';
 
-// Tarjetas de Estado y Análisis
-import AIAdvisorCard from './components/AIAdvisorCard';
-import LeakStatusCard from './components/LeakStatusCard'; // <--- NUEVO
-import DailyTrendCard from './components/DailyTrendCard'; // <--- NUEVO
-import CostEstimateCard from './components/CostEstimateCard';
-import BillHistory from './components/BillHistory';       // <--- NUEVO
+const NAV = [
+  { id: 'fleet', label: 'Operaciones', icon: LayoutDashboard, hint: 'Flota y alertas' },
+  { id: 'household', label: 'Vista Hogar', icon: User, hint: 'Detalle ciudadano' },
+  { id: 'system', label: 'Sistema', icon: ShieldCheck, hint: 'Modelo y trazabilidad' },
+];
 
-// Gráficas
-import ConsumptionChart from './components/ConsumptionChart';
-import HourlyPatternsChart from './components/HourlyPatternsChart';
+const VIEW_TITLES = {
+  fleet: { title: 'Panel de Operaciones', sub: 'Priorización de intervenciones sobre la flota de contadores' },
+  household: { title: 'Vista Hogar', sub: 'Lo que ve el ciudadano en la app white-label' },
+  system: { title: 'Sistema', sub: 'Modelo desplegado, datos y métricas de la última evaluación' },
+};
 
 function App() {
-  // Estados de Datos
+  // Navegación
+  const [view, setView] = useState('fleet');
+
+  // Datos maestros
   const [households, setHouseholds] = useState([]);
   const [regions, setRegions] = useState([]);
-  
-  // Estados de Selección
+
+  // Selección
   const [selectedHouse, setSelectedHouse] = useState('');
   const [selectedRegion, setSelectedRegion] = useState('Promedio Nacional');
-  
-  // Estados de UI
+
+  // Estado del análisis de hogar
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // 1. Carga Inicial (Casas y Regiones)
   useEffect(() => {
-    const initData = async () => {
+    const init = async () => {
       try {
         const [h, r] = await Promise.all([getHouseholds(), getRegions()]);
         setHouseholds(h);
         setRegions(r);
-      } catch (e) { 
+      } catch (e) {
         console.error(e);
-        setError("Error de conexión con el servidor. Verifica que el backend está corriendo."); 
+        setError('Error de conexión con el servidor. Verifica que el backend está corriendo.');
       }
     };
-    initData();
+    init();
   }, []);
 
-  // 2. Manejador del botón "Analizar"
-  const handleAnalyze = async () => {
-    if (!selectedHouse) return;
-    
+  const handleAnalyze = async (houseId = selectedHouse) => {
+    if (!houseId) return;
     setLoading(true);
     setData(null);
     setError(null);
-
     try {
-      const res = await analyzeHousehold(selectedHouse, selectedRegion);
+      const res = await analyzeHousehold(houseId, selectedRegion);
       setData(res);
-    } catch (e) { 
+    } catch (e) {
       console.error(e);
-      setError("No se pudo analizar el hogar seleccionado. Inténtalo de nuevo."); 
-    } finally { 
-      setLoading(false); 
+      setError('No se pudo analizar el hogar seleccionado. Inténtalo de nuevo.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        
-        {/* --- HEADER --- */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-slate-200">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-extrabold flex items-center gap-3 text-slate-800">
-              <div className="bg-blue-600 text-white p-2.5 rounded-xl shadow-lg shadow-blue-200">
-                <Droplets size={28} />
-              </div>
-              Smart Water Monitor
-            </h1>
-            <p className="text-slate-500 mt-2 text-lg font-medium ml-1">
-              Plataforma de Gestión Hídrica Inteligente
-            </p>
-          </div>
-          
-          <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-slate-200 text-sm text-slate-500 font-medium">
-            <Activity size={16} className="text-green-500" />
-            Sistema Operativo v2.0
-          </div>
-        </header>
+  // Drill-down desde la cola de alertas del operador
+  const handleSelectFromFleet = (houseId) => {
+    setSelectedHouse(houseId);
+    setView('household');
+    handleAnalyze(houseId);
+  };
 
-        {/* --- BARRA DE CONTROL --- */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col lg:flex-row gap-5 items-end lg:items-center">
-          <div className="flex flex-col md:flex-row gap-4 w-full lg:flex-grow">
-            <HouseholdSelector 
-              households={households} 
-              selectedHouse={selectedHouse} 
-              setSelectedHouse={setSelectedHouse} 
-              disabled={loading}
-            />
-            <RegionSelector 
-              regions={regions} 
-              selectedRegion={selectedRegion} 
-              setSelectedRegion={setSelectedRegion} 
-              disabled={loading}
-            />
+  const { title, sub } = VIEW_TITLES[view];
+
+  return (
+    <div className="min-h-screen flex">
+
+      {/* ============ SIDEBAR ============ */}
+      <aside
+        className="w-60 shrink-0 flex flex-col text-slate-300"
+        style={{ background: 'var(--sidebar)' }}
+      >
+        {/* Marca (white-label: aquí va el logo de la gestora) */}
+        <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
+          <div className="bg-gradient-to-br from-sky-500 to-blue-700 text-white p-2 rounded-xl">
+            <Droplets size={20} strokeWidth={2.5} />
           </div>
-          
-          <button 
-            onClick={handleAnalyze}
-            disabled={!selectedHouse || loading}
-            className="w-full lg:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-blue-100 flex items-center justify-center min-w-[160px]"
-          >
-            {loading ? <LoadingSpinner /> : 'Generar Informe'}
-          </button>
+          <div className="min-w-0">
+            <div className="font-bold text-white leading-tight">Smart Water</div>
+            <div className="text-[11px] text-slate-400 leading-tight">Consola de la gestora</div>
+          </div>
         </div>
 
-        {/* --- MENSAJES DE ERROR --- */}
-        {error && <AlertMessage message={error} type="error" />}
+        {/* Navegación */}
+        <nav className="flex-1 px-3 py-4 space-y-1">
+          {NAV.map(({ id, label, icon: Icon, hint }) => {
+            const active = view === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setView(id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                  active ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+                }`}
+                style={{ background: active ? 'var(--sidebar-active)' : 'transparent' }}
+                onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--sidebar-hover)'; }}
+                onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent'; }}
+              >
+                <Icon size={18} className={active ? 'text-sky-400' : ''} />
+                <span className="flex-1">
+                  <span className="block text-sm font-semibold">{label}</span>
+                  <span className="block text-[11px] opacity-60">{hint}</span>
+                </span>
+              </button>
+            );
+          })}
+        </nav>
 
-        {/* --- DASHBOARD PRINCIPAL --- */}
-        {data && (
-          <div className="animate-fade-in space-y-6">
-            
-            {/* FILA 1: INFORMACIÓN CRÍTICA (Estado + IA) */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-1 h-full">
-                {/* AVISO VISUAL DE FUGA */}
-                <LeakStatusCard leakData={data.leak_detection} />
-              </div>
-              <div className="lg:col-span-2 h-full">
-                {/* CONSEJO DE GPT-4o */}
-                <AIAdvisorCard report={data.ai_assistant.report} />
-              </div>
-            </div>
-
-            {/* FILA 2: METRICAS FINANCIERAS Y OPERATIVAS */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Tarjeta 1: Hoy vs Ayer */}
-              <DailyTrendCard dailyData={data.consumption_analytics.daily_status} />
-              
-              {/* Tarjeta 2: Factura Estimada Mes Actual */}
-              <CostEstimateCard 
-                kpis={data.consumption_analytics.financial_kpis} 
-                region={data.region_applied} 
-              />
-              
-              {/* Tarjeta 3: Tabla Histórica (Ocupa espacio para verse bien) */}
-              <div className="md:col-span-2 lg:col-span-1">
-                <BillHistory 
-                  history={data.consumption_analytics.bills_history} 
-                  currentRegion={data.region_applied}
-                />
-              </div>
-            </div>
-
-            {/* FILA 3: ANÁLISIS VISUAL (GRÁFICAS) */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Gráfica Grande (Evolución) */}
-              <div className="lg:col-span-2">
-                <ConsumptionChart 
-                  data={data.consumption_analytics.charts.daily_consumption}
-                  communityAvg={data.consumption_analytics.community_comparison.community_daily_avg}
-                  anomalousDays={data.leak_detection.anomalous_days} 
-                />
-              </div>
-              
-              {/* Gráfica Pequeña (Patrones Horarios) */}
-              <div className="lg:col-span-1">
-                <HourlyPatternsChart 
-                  data={data.consumption_analytics.charts.hourly_patterns}
-                />
-              </div>
-            </div>
-
+        {/* Pie */}
+        <div className="px-5 py-4 border-t border-white/10 text-[11px] text-slate-500 space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            Sistema operativo
           </div>
-        )}
-        
-        {/* --- ESTADO VACÍO --- */}
-        {!data && !loading && !error && (
-          <div className="flex flex-col items-center justify-center py-24 text-slate-400 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
-            <div className="bg-white p-4 rounded-full shadow-sm mb-4">
-              <Activity size={40} className="text-slate-300" />
-            </div>
-            <p className="text-xl font-medium text-slate-600">El panel de control está listo.</p>
-            <p className="text-sm">Selecciona un hogar y una región para comenzar el diagnóstico.</p>
-          </div>
-        )}
+          <div>Smart Water Monitor · v2.1</div>
+        </div>
+      </aside>
 
+      {/* ============ CONTENIDO ============ */}
+      <div className="flex-1 flex flex-col min-w-0">
+
+        {/* Topbar */}
+        <header className="bg-white border-b border-slate-200 px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-bold text-slate-900">{title}</h1>
+            <p className="text-sm text-slate-500 truncate">{sub}</p>
+          </div>
+
+          {/* Selector de región global (afecta a la valoración en €) */}
+          <label className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+            <MapPin size={15} className="text-slate-400" />
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tarifa</span>
+            <select
+              className="bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer"
+              value={selectedRegion}
+              onChange={(e) => setSelectedRegion(e.target.value)}
+            >
+              {regions.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </label>
+        </header>
+
+        {/* Vista activa */}
+        <main className="flex-1 overflow-y-auto p-6">
+          {view === 'fleet' && (
+            <FleetOverview region={selectedRegion} onSelectHousehold={handleSelectFromFleet} />
+          )}
+
+          {view === 'household' && (
+            <HouseholdView
+              households={households}
+              selectedHouse={selectedHouse}
+              setSelectedHouse={setSelectedHouse}
+              data={data}
+              loading={loading}
+              error={error}
+              onAnalyze={() => handleAnalyze()}
+              onBackToFleet={() => setView('fleet')}
+            />
+          )}
+
+          {view === 'system' && <SystemPanel />}
+        </main>
       </div>
     </div>
   );
