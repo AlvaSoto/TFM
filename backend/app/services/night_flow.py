@@ -56,9 +56,20 @@ def mnf_analysis(df: pd.DataFrame) -> dict:
 
 
 def combine_alert_level(ml_alert: bool, mnf_alert: bool) -> str:
-    """Nivel de alerta del ensemble para la cola de intervención."""
-    if ml_alert and mnf_alert:
-        return "CONFIRMADA"
-    if ml_alert or mnf_alert:
-        return "SOSPECHA"
+    """
+    Nivel de alerta del ensemble para la cola de intervención.
+
+    Lógica basada en la evaluación 2026-07-06 sobre hogares nunca vistos:
+    el MNF solo alcanzó P=1.0 / R=0.815 a nivel hogar, mientras que exigir
+    confirmación del ML (AND) bajaba el recall a 0.667 sin ganar precisión.
+    Por eso: la regla física confirma por sí sola; el ML amplía cobertura.
+
+    Caveat mundo real: con datos reales el MNF tendrá falsos suelos (riego
+    nocturno programado, descalcificadores) que el simulador no modela —
+    recalibrar este reparto de pesos durante el piloto.
+    """
+    if mnf_alert:
+        return "CONFIRMADA"  # caudal nocturno continuo: firma física de fuga
+    if ml_alert:
+        return "SOSPECHA"    # el modelo IA ve un patrón anómalo sin confirmación física
     return "OK"

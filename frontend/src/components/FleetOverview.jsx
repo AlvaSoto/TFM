@@ -30,7 +30,7 @@ function LevelBadge({ level, mlDetected }) {
       <span
         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold text-white"
         style={{ background: '#d03b3b' }}
-        title="El modelo IA y la regla de caudal mínimo nocturno coinciden"
+        title="Caudal nocturno continuo: la firma física de una fuga (precisión 1.0 en evaluación)"
       >
         <AlertTriangle size={12} /> CONFIRMADA
       </span>
@@ -41,7 +41,7 @@ function LevelBadge({ level, mlDetected }) {
       <span
         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold text-amber-900"
         style={{ background: '#fab219' }}
-        title={mlDetected ? 'Detectada por IA, sin confirmación nocturna' : 'Caudal nocturno continuo, sin detección IA'}
+        title="Patrón anómalo detectado por el modelo IA, sin confirmación física nocturna"
       >
         <AlertTriangle size={12} /> SOSPECHA
       </span>
@@ -146,7 +146,7 @@ export default function FleetOverview({ region, onSelectHousehold }) {
           icon={AlertTriangle}
           label="Alertas activas"
           value={kpis.active_alerts}
-          sub={`${kpis.confirmed_alerts ?? 0} confirmadas · ${kpis.suspected_alerts ?? 0} sospechas`}
+          sub={`${kpis.confirmed_alerts ?? 0} confirmadas (caudal nocturno) · ${kpis.suspected_alerts ?? 0} sospechas (IA)`}
           accent="#d03b3b"
         />
         <KpiTile

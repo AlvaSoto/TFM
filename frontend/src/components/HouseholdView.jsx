@@ -65,11 +65,11 @@ export default function HouseholdView({
             {ensemble && (
               ensemble.alert_level === 'CONFIRMADA' ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold text-white" style={{ background: '#d03b3b' }}>
-                  <AlertTriangle size={12} /> FUGA CONFIRMADA (IA + caudal nocturno)
+                  <AlertTriangle size={12} /> FUGA CONFIRMADA (caudal nocturno continuo)
                 </span>
               ) : ensemble.alert_level === 'SOSPECHA' ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold text-amber-900" style={{ background: '#fab219' }}>
-                  <AlertTriangle size={12} /> SOSPECHA — un solo detector
+                  <AlertTriangle size={12} /> SOSPECHA — detectada por IA
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 rounded-full text-xs font-bold text-emerald-800">

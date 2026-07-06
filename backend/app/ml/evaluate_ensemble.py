@@ -45,7 +45,7 @@ def prf(tp: int, fp: int, fn: int) -> dict:
 
 def evaluate_subset(scored: dict, df: pd.DataFrame, subset: set | None = None) -> tuple:
     """Métricas día-nivel agregadas; subset limita a esos household_ids."""
-    totals = {k: [0, 0, 0] for k in ("ML", "MNF", "AND (confirmadas)", "OR (cobertura)")}
+    totals = {k: [0, 0, 0] for k in ("ML (→ SOSPECHA)", "MNF (→ CONFIRMADA)", "AND (ambos)", "OR (cobertura)")}
     n_households = 0
     households_with_leak = 0
 
@@ -65,9 +65,9 @@ def evaluate_subset(scored: dict, df: pd.DataFrame, subset: set | None = None) -
         mnf_days = set(s.get("mnf_days", []))
 
         preds = {
-            "ML": ml_days,
-            "MNF": mnf_days,
-            "AND (confirmadas)": ml_days & mnf_days,
+            "ML (→ SOSPECHA)": ml_days,
+            "MNF (→ CONFIRMADA)": mnf_days,
+            "AND (ambos)": ml_days & mnf_days,
             "OR (cobertura)": ml_days | mnf_days,
         }
         for name, pred in preds.items():

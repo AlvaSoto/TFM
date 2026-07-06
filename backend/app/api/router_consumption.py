@@ -146,8 +146,12 @@ def get_system_info():
                                     else "fallback estático (settings.LEAK_THRESHOLD)",
             },
             "ensemble": {
-                "components": ["LSTM Autoencoder (ML)", "Caudal Mínimo Nocturno (regla física)"],
-                "levels": {"CONFIRMADA": "ML y MNF coinciden", "SOSPECHA": "solo un detector", "OK": "ninguno"},
+                "components": ["Caudal Mínimo Nocturno (regla física)", "LSTM Autoencoder (ML)"],
+                "levels": {
+                    "CONFIRMADA": "caudal nocturno continuo (regla física, precisión 1.0 medida)",
+                    "SOSPECHA": "patrón anómalo según el modelo IA, sin confirmación física",
+                    "OK": "ningún detector activo",
+                },
             },
             "dataset": {
                 "file": settings.DATA_DIR.name,
