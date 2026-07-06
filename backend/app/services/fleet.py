@@ -109,6 +109,15 @@ class FleetService:
                 "scored_at": time.strftime("%Y-%m-%d %H:%M"),
             }
 
+        # Alerta saliente al TRANSICIONAR a CONFIRMADA (no en re-scorings repetidos)
+        prev_level = (cached or {}).get("alert_level")
+        if summary.get("alert_level") == "CONFIRMADA" and prev_level != "CONFIRMADA":
+            try:
+                from app.services.alerting import alert_service
+                alert_service.notify_confirmed_leak(summary)
+            except Exception as e:
+                print(f"[ALERT] fallo no bloqueante: {e}")
+
         self._scores[household_id] = summary
         self._trends_cache = None  # los agregados de red dependen de los scores
         return summary

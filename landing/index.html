@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Water Monitor — Detecta fugas antes de que lleguen a la factura</title>
+<meta name="description" content="Monitorización inteligente del agua para hoteles, municipios y gestoras. La física del contador confirma, la IA amplía la búsqueda. Piloto en 4 semanas.">
+<style>
+  /* ============ Design tokens (paleta validada CVD-safe) ============ */
+  :root {
+    --blue: #2a78d6; --blue-deep: #104281; --blue-soft: #cde2fb;
+    --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+    --ink-1: #0b0b0b; --ink-2: #52514e; --ink-3: #898781;
+    --surface: #ffffff; --plane: #f6f7f9; --hairline: rgba(11,11,11,.09);
+    --navy: #0f1a2b; --navy-2: #16233a;
+    --radius: 16px;
+    --shadow: 0 1px 2px rgba(15,26,43,.05), 0 12px 32px -16px rgba(15,26,43,.14);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --blue: #3987e5; --blue-deep: #86b6ef; --blue-soft: #1c3a5e;
+      --ink-1: #f4f4f2; --ink-2: #c3c2b7; --ink-3: #898781;
+      --surface: #16233a; --plane: #0f1a2b; --hairline: rgba(255,255,255,.10);
+      --navy: #0a1220; --navy-2: #101c30;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px -16px rgba(0,0,0,.5);
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--plane); color: var(--ink-1); line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  h1, h2, h3 { line-height: 1.15; letter-spacing: -0.02em; }
+  a { color: var(--blue); text-decoration: none; }
+
+  /* ============ Nav ============ */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--plane) 88%, transparent);
+    backdrop-filter: blur(12px); border-bottom: 1px solid var(--hairline);
+  }
+  .nav-inner { display: flex; align-items: center; gap: 24px; padding: 14px 24px; max-width: 1080px; margin: 0 auto; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; color: var(--ink-1); }
+  .brand-mark {
+    width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--blue), var(--blue-deep)); color: #fff; font-size: 17px;
+  }
+  .nav-links { display: flex; gap: 22px; margin-left: auto; align-items: center; }
+  .nav-links a { color: var(--ink-2); font-size: 14.5px; font-weight: 500; }
+  .nav-links a:hover { color: var(--blue); }
+  @media (max-width: 720px) { .nav-links a:not(.btn) { display: none; } }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border-radius: 12px; font-weight: 650; font-size: 15px;
+    transition: transform .15s ease, box-shadow .15s ease; cursor: pointer; border: 0;
+  }
+  .btn-primary { background: var(--blue); color: #fff !important; box-shadow: var(--shadow); }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 16px 36px -14px rgba(42,120,214,.55); }
+  .btn-ghost { border: 1.5px solid var(--hairline); color: var(--ink-1) !important; background: var(--surface); }
+  .btn-ghost:hover { border-color: var(--blue); color: var(--blue) !important; }
+  .nav-links .btn { padding: 9px 18px; font-size: 14px; }
+
+  /* ============ Hero ============ */
+  .hero { padding: 88px 0 48px; }
+  .kicker {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--blue); background: var(--blue-soft); padding: 6px 14px; border-radius: 999px; margin-bottom: 22px;
+  }
+  .hero h1 { font-size: clamp(34px, 5.4vw, 58px); font-weight: 800; max-width: 780px; }
+  .hero h1 em { font-style: normal; color: var(--blue); }
+  .hero p.lead { font-size: clamp(17px, 2vw, 20px); color: var(--ink-2); max-width: 640px; margin: 22px 0 32px; }
+  .hero-ctas { display: flex; gap: 14px; flex-wrap: wrap; }
+  .hero-note { margin-top: 14px; font-size: 13.5px; color: var(--ink-3); }
+
+  /* ============ Console mock ============ */
+  .mock { margin: 64px 0 0; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--hairline); }
+  .mock svg { display: block; width: 100%; height: auto; }
+
+  /* ============ Sections ============ */
+  section { padding: 84px 0; }
+  .sec-head { max-width: 640px; margin-bottom: 44px; }
+  .sec-head h2 { font-size: clamp(26px, 3.6vw, 38px); font-weight: 800; margin-bottom: 12px; }
+  .sec-head p { color: var(--ink-2); font-size: 17px; }
+
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 860px) { .grid-3 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: var(--radius); padding: 30px; box-shadow: var(--shadow);
+  }
+  .card .icon {
+    width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center;
+    font-size: 22px; margin-bottom: 18px; background: var(--blue-soft);
+  }
+  .card h3 { font-size: 19px; margin-bottom: 10px; }
+  .card p { color: var(--ink-2); font-size: 15px; }
+  .card .tag { display: inline-block; margin-top: 16px; font-size: 12.5px; font-weight: 650; color: var(--blue); }
+
+  /* ============ Pasos ============ */
+  .steps { counter-reset: paso; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 860px) { .steps { grid-template-columns: 1fr; } }
+  .step { position: relative; padding: 30px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .step::before {
+    counter-increment: paso; content: counter(paso);
+    display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--blue), var(--blue-deep)); color: #fff;
+    font-weight: 800; font-size: 17px; margin-bottom: 16px;
+  }
+  .step h3 { font-size: 18px; margin-bottom: 8px; }
+  .step p { color: var(--ink-2); font-size: 15px; }
+  .step small { display: block; margin-top: 12px; color: var(--ink-3); font-size: 13px; }
+
+  /* ============ Métricas honestas ============ */
+  .metrics { background: var(--navy); color: #e8eaf0; border-radius: 24px; padding: 60px 40px; }
+  .metrics .sec-head h2 { color: #fff; }
+  .metrics .sec-head p { color: #9aa5b8; }
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; margin-top: 12px; }
+  @media (max-width: 860px) { .stat-row { grid-template-columns: repeat(2, 1fr); } }
+  .stat .num { font-size: clamp(30px, 4vw, 44px); font-weight: 800; color: #fff; }
+  .stat .num span { color: var(--warning); }
+  .stat .lbl { font-size: 14px; color: #9aa5b8; margin-top: 6px; }
+  .metrics .foot { margin-top: 34px; font-size: 13px; color: #7c8798; border-top: 1px solid rgba(255,255,255,.12); padding-top: 18px; }
+
+  /* ============ Confianza ============ */
+  .trust-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 860px) { .trust-list { grid-template-columns: 1fr; } }
+
+  /* ============ CTA final ============ */
+  .cta-final { text-align: center; padding: 90px 24px; }
+  .cta-final h2 { font-size: clamp(28px, 4vw, 42px); font-weight: 800; max-width: 700px; margin: 0 auto 16px; }
+  .cta-final p { color: var(--ink-2); max-width: 560px; margin: 0 auto 32px; font-size: 17px; }
+
+  footer { border-top: 1px solid var(--hairline); padding: 34px 24px; }
+  .foot-inner { max-width: 1080px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; color: var(--ink-3); font-size: 13.5px; }
+
+  /* ============ Animación de entrada ============ */
+  .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
+  .reveal.on { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="brand"><span class="brand-mark">💧</span> Smart Water Monitor</div>
+    <div class="nav-links">
+      <a href="#segmentos">Para quién</a>
+      <a href="#como">Cómo funciona</a>
+      <a href="#metricas">Resultados</a>
+      <a class="btn btn-primary" href="mailto:asotobarja@gmail.com?subject=Piloto%20Smart%20Water%20Monitor">Solicitar piloto</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ==================== HERO ==================== -->
+<header class="hero">
+  <div class="wrap">
+    <span class="kicker">Física + IA · Datos en tu infraestructura</span>
+    <h1>Detecta las fugas de agua <em>antes</em> de que lleguen a la factura</h1>
+    <p class="lead">
+      Monitorización continua de contadores para hoteles, municipios y gestoras.
+      Una fuga media desperdicia miles de litros durante semanas antes de que nadie la vea.
+      Nosotros la confirmamos en <strong>menos de 48&nbsp;horas</strong> — y te decimos cuántos euros se están yendo por el desagüe.
+    </p>
+    <div class="hero-ctas">
+      <a class="btn btn-primary" href="mailto:asotobarja@gmail.com?subject=Piloto%20Smart%20Water%20Monitor">Agenda una demo de 20 min</a>
+      <a class="btn btn-ghost" href="#como">Ver cómo funciona</a>
+    </div>
+    <p class="hero-note">Piloto de 4–6 semanas · instalación en una mañana · sin permanencia</p>
+
+    <!-- Mock de la consola (SVG inline, sin dependencias) -->
+    <div class="mock reveal">
+      <svg viewBox="0 0 1040 480" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Consola de operaciones: alertas de fuga priorizadas">
+        <rect width="1040" height="480" fill="#0f1a2b"/>
+        <rect x="0" y="0" width="200" height="480" fill="#0a1424"/>
+        <circle cx="30" cy="34" r="12" fill="#2a78d6"/>
+        <rect x="52" y="26" width="98" height="9" rx="4" fill="#3b4a63"/>
+        <rect x="52" y="41" width="70" height="6" rx="3" fill="#26334a"/>
+        <rect x="14" y="84" width="172" height="34" rx="9" fill="#21354f"/>
+        <rect x="30" y="96" width="110" height="9" rx="4" fill="#7fa8dc"/>
+        <rect x="14" y="126" width="172" height="34" rx="9" fill="transparent"/>
+        <rect x="30" y="138" width="90" height="9" rx="4" fill="#3b4a63"/>
+        <rect x="14" y="168" width="172" height="34" rx="9" fill="transparent"/>
+        <rect x="30" y="180" width="100" height="9" rx="4" fill="#3b4a63"/>
+        <!-- KPI tiles -->
+        <g>
+          <rect x="224" y="24" width="186" height="88" rx="12" fill="#16233a"/>
+          <rect x="240" y="40" width="76" height="8" rx="4" fill="#4a5a75"/>
+          <text x="240" y="86" font-family="system-ui" font-size="30" font-weight="700" fill="#ffffff">159</text>
+          <rect x="424" y="24" width="186" height="88" rx="12" fill="#16233a"/>
+          <rect x="440" y="40" width="90" height="8" rx="4" fill="#4a5a75"/>
+          <text x="440" y="86" font-family="system-ui" font-size="30" font-weight="700" fill="#f0736f">12</text>
+          <rect x="624" y="24" width="186" height="88" rx="12" fill="#16233a"/>
+          <rect x="640" y="40" width="80" height="8" rx="4" fill="#4a5a75"/>
+          <text x="640" y="86" font-family="system-ui" font-size="30" font-weight="700" fill="#ffffff">214 m³</text>
+          <rect x="824" y="24" width="186" height="88" rx="12" fill="#16233a"/>
+          <rect x="840" y="40" width="86" height="8" rx="4" fill="#4a5a75"/>
+          <text x="840" y="86" font-family="system-ui" font-size="30" font-weight="700" fill="#69c98b">418 €</text>
+        </g>
+        <!-- Chart -->
+        <rect x="224" y="128" width="786" height="160" rx="12" fill="#16233a"/>
+        <polyline points="248,250 300,238 352,244 404,226 456,236 508,220 560,232 612,208 664,225 716,196 768,230 820,210 872,240 924,218 976,235"
+                  fill="none" stroke="#3987e5" stroke-width="3" stroke-linecap="round"/>
+        <polyline points="248,250 300,238 352,244 404,226 456,236 508,220 560,232 612,208 664,225 716,196 768,230 820,210 872,240 924,218 976,235 976,272 248,272"
+                  fill="#3987e5" opacity="0.12"/>
+        <circle cx="716" cy="196" r="6" fill="#e5534b"/>
+        <circle cx="612" cy="208" r="6" fill="#e5534b"/>
+        <!-- Tabla de alertas -->
+        <rect x="224" y="304" width="786" height="152" rx="12" fill="#16233a"/>
+        <rect x="248" y="326" width="120" height="9" rx="4" fill="#4a5a75"/>
+        <g font-family="system-ui" font-size="13" font-weight="700">
+          <rect x="248" y="352" width="230" height="10" rx="5" fill="#31405c"/>
+          <rect x="530" y="348" width="112" height="20" rx="10" fill="#d03b3b"/>
+          <text x="546" y="362" fill="#ffffff">CONFIRMADA</text>
+          <text x="900" y="364" fill="#e8eaf0" text-anchor="end">2.637 L · 5,2 €</text>
+          <rect x="248" y="386" width="200" height="10" rx="5" fill="#31405c"/>
+          <rect x="530" y="382" width="96" height="20" rx="10" fill="#b98514"/>
+          <text x="546" y="396" fill="#ffffff">SOSPECHA</text>
+          <text x="900" y="398" fill="#e8eaf0" text-anchor="end">1.104 L · 2,1 €</text>
+          <rect x="248" y="420" width="215" height="10" rx="5" fill="#31405c"/>
+          <rect x="530" y="416" width="46" height="20" rx="10" fill="#1e7a3c"/>
+          <text x="541" y="430" fill="#ffffff">OK</text>
+          <text x="900" y="432" fill="#8b96a8" text-anchor="end">—</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<!-- ==================== SEGMENTOS ==================== -->
+<section id="segmentos">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <h2>El agua es el coste que nadie vigila</h2>
+      <p>La factura llega meses tarde y agregada. Para entonces, la fuga ya te ha costado más que el sistema que la habría detectado.</p>
+    </div>
+    <div class="grid-3">
+      <div class="card reveal">
+        <div class="icon">🏨</div>
+        <h3>Hoteles y balnearios</h3>
+        <p>Una cisterna rota en una habitación cerrada o una fuga enterrada en el riego puede correr <strong>semanas</strong>. Monitorizamos tu contador general y los puntos críticos, condicionando lo esperado a tu <strong>ocupación real</strong>.</p>
+        <span class="tag">Instalación en una mañana · sin obra</span>
+      </div>
+      <div class="card reveal">
+        <div class="icon">🏘️</div>
+        <h3>Municipios y pueblos</h3>
+        <p>Hasta un 25% del agua se pierde en la red. Balance hídrico por sector, mínimo nocturno con línea base propia y priorización de intervenciones — con la analítica que los fondos de digitalización esperan ver.</p>
+        <span class="tag">Alineado con PERTE del agua</span>
+      </div>
+      <div class="card reveal">
+        <div class="icon">🚰</div>
+        <h3>Gestoras de agua</h3>
+        <p>Vosotros ponéis los dispositivos IoT en los puntos estratégicos; nosotros la capa de software: detección por sector (DMA), cola de intervención priorizada por pérdida en €, y app white-label para vuestros abonados.</p>
+        <span class="tag">White-label · despliegue en vuestra infraestructura</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== CÓMO FUNCIONA ==================== -->
+<section id="como" style="background: var(--surface); border-block: 1px solid var(--hairline);">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <h2>Cómo funciona</h2>
+      <p>Sin obra, sin cortar el agua, sin cambiar tu contador.</p>
+    </div>
+    <div class="steps">
+      <div class="step reveal">
+        <h3>Conecta el contador</h3>
+        <p>Un emisor de pulsos o tu telelectura existente (LoRaWAN, NB-IoT, exportación CSV de tu AMI). Las lecturas llegan a nuestra API de forma segura.</p>
+        <small>Compatible con lecturas cada 15 min o horarias</small>
+      </div>
+      <div class="step reveal">
+        <h3>Aprendemos tu normalidad</h3>
+        <p>Durante 3–4 semanas el sistema construye la línea base de <em>tu</em> instalación: patrón horario, fines de semana, ocupación, temporada. Nada de umbrales genéricos.</p>
+        <small>El modelo se reentrena con tus datos en menos de un minuto</small>
+      </div>
+      <div class="step reveal">
+        <h3>Alertas que puedes creerte</h3>
+        <p>Doble verificación: la <strong>física del contador</strong> (el caudal nocturno que nunca para) confirma; la <strong>IA</strong> amplía la búsqueda. Cada alerta llega con los litros y euros estimados de pérdida.</p>
+        <small>Email, webhook (Slack/Teams) y consola de operaciones</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== MÉTRICAS ==================== -->
+<section id="metricas">
+  <div class="wrap">
+    <div class="metrics reveal">
+      <div class="sec-head">
+        <h2>No prometemos magia. Publicamos nuestras métricas.</h2>
+        <p>Cada versión del sistema se evalúa contra escenarios de fuga etiquetados, sobre instalaciones que el modelo nunca ha visto. Estos son los números reales de nuestro banco de pruebas — y la vista «Sistema» de la consola los enseña en vivo.</p>
+      </div>
+      <div class="stat-row">
+        <div class="stat">
+          <div class="num">100<span>%</span></div>
+          <div class="lbl">precisión de las alertas CONFIRMADAS — cero falsas alarmas en el nivel que te despierta</div>
+        </div>
+        <div class="stat">
+          <div class="num">9<span>/10</span></div>
+          <div class="lbl">instalaciones con fuga identificadas combinando física + IA</div>
+        </div>
+        <div class="stat">
+          <div class="num">&lt;48<span>h</span></div>
+          <div class="lbl">desde que la fuga empieza hasta la confirmación nocturna</div>
+        </div>
+        <div class="stat">
+          <div class="num">&lt;1<span>min</span></div>
+          <div class="lbl">reentrenamiento con tus datos — el sistema mejora cada semana del piloto</div>
+        </div>
+      </div>
+      <p class="foot">
+        Métricas medidas en banco de pruebas con fugas simuladas etiquetadas (180 días, 200+ puntos de medida, evaluación sobre instalaciones no vistas en entrenamiento).
+        Los resultados en tu instalación se miden y comparten contigo durante el piloto — con la misma transparencia.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== CONFIANZA ==================== -->
+<section>
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <h2>Pensado para pasar tu due diligence</h2>
+      <p>Sabemos quién va a revisar esto: tu equipo técnico, tu DPO y tu director financiero.</p>
+    </div>
+    <div class="trust-list">
+      <div class="card reveal">
+        <div class="icon">🔍</div>
+        <h3>Trazabilidad total</h3>
+        <p>Qué modelo corre, con qué umbral, entrenado con qué datos y con qué métricas: todo visible en la consola. Sin cajas negras que nadie puede auditar.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon">🔒</div>
+        <h3>Tus datos, tu casa</h3>
+        <p>Despliegue en tu infraestructura o en la nuestra — tú eliges. Los datos de contador general de un hotel o un sector de red no son datos personales: cero fricción RGPD para empezar.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon">📏</div>
+        <h3>Piloto con métricas pactadas</h3>
+        <p>Antes de empezar acordamos qué mediremos: tasa de detección, falsas alarmas, litros y euros recuperados. Al final del piloto, los números deciden — no las diapositivas.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== CTA FINAL ==================== -->
+<section class="cta-final" style="background: var(--surface); border-top: 1px solid var(--hairline);">
+  <h2 class="reveal">Una fuga sin detectar cuesta más que el piloto que la habría encontrado</h2>
+  <p class="reveal">Cuéntanos qué instalación quieres vigilar y te preparamos una propuesta de piloto de 4–6 semanas con métricas de éxito pactadas por escrito.</p>
+  <div class="reveal">
+    <a class="btn btn-primary" style="font-size:17px; padding:16px 34px;" href="mailto:asotobarja@gmail.com?subject=Piloto%20Smart%20Water%20Monitor&body=Hola%20%C3%81lvaro%2C%0A%0AMe%20interesa%20un%20piloto%20para%3A%20%5Bhotel%20%2F%20municipio%20%2F%20gestora%5D%0AInstalaci%C3%B3n%3A%20...%0A%0AUn%20saludo">
+      Solicitar propuesta de piloto
+    </a>
+  </div>
+</section>
+
+<footer>
+  <div class="foot-inner">
+    <span>© 2026 Smart Water Monitor · Álvaro Soto</span>
+    <span><a href="mailto:asotobarja@gmail.com">asotobarja@gmail.com</a></span>
+  </div>
+</footer>
+
+<script>
+  // Animación de entrada al hacer scroll (respeta prefers-reduced-motion via CSS)
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('on'); io.unobserve(e.target); } });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+</script>
+</body>
+</html>

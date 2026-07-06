@@ -36,6 +36,10 @@ app.add_middleware(
 # - /api/v1/consumption/dashboard/{id}
 app.include_router(router_consumption.router, prefix="/api/v1", tags=["Smart Water"])
 
+# Ingesta de lecturas reales (kit de piloto) — protegida por X-API-Key
+from app.api import router_ingest
+app.include_router(router_ingest.router, prefix="/api/v1", tags=["Ingesta piloto"])
+
 @app.get("/")
 def root():
     return {"message": "Welcome to the Smart Water API. Visit /docs for documentation."}

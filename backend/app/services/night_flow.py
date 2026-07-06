@@ -19,13 +19,23 @@ import pandas as pd
 NIGHT_START_HOUR = 1
 NIGHT_END_HOUR = 5
 
-# Suelo nocturno: si TODOS los intervalos de 15 min de la noche superan estos
-# litros, el agua no ha dejado de correr. 2 L/15min = 0.13 L/min, muy por
-# debajo de cualquier fuga relevante (0.3+ L/min) y por encima del ruido.
-FLOOR_LITERS_PER_INTERVAL = 2.0
+# Suelo nocturno: si TODOS los intervalos de la noche superan este caudal,
+# el agua no ha dejado de correr. 0.13 L/min está muy por debajo de cualquier
+# fuga relevante (0.3+ L/min) y por encima del ruido. Se expresa por MINUTO
+# para ser agnóstico a la resolución (15 min del simulador, 1 h de muchos
+# contadores reales): el umbral por intervalo se escala automáticamente.
+FLOOR_LPM = 2.0 / 15  # ≈ 0.13 L/min (equivale al umbral histórico de 2 L/15min)
 
 # Persistencia: nº mínimo de noches con suelo para considerar alerta MNF
 MIN_NIGHTS = 2
+
+
+def _interval_minutes(ts: pd.Series) -> float:
+    """Resolución de la serie en minutos (mediana de los saltos)."""
+    diffs = ts.sort_values().diff().dropna()
+    if diffs.empty:
+        return 15.0
+    return max(1.0, float(diffs.median().total_seconds() / 60))
 
 
 def mnf_analysis(df: pd.DataFrame) -> dict:
@@ -42,10 +52,12 @@ def mnf_analysis(df: pd.DataFrame) -> dict:
         return {"mnf_alert": False, "mnf_days": [], "max_night_floor_l": 0.0, "nights_analyzed": 0}
 
     night_dates = ts.loc[night_mask].dt.strftime("%Y-%m-%d")
-    # Suelo de cada noche = mínimo de los intervalos de 15 min de esa madrugada
+    # Suelo de cada noche = mínimo de los intervalos de esa madrugada
     floors = night.groupby(night_dates.values)["consumption_l"].min()
 
-    mnf_days = sorted(floors[floors > FLOOR_LITERS_PER_INTERVAL].index.tolist())
+    # Umbral escalado a la resolución real de la serie (15 min, 1 h...)
+    floor_threshold = FLOOR_LPM * _interval_minutes(ts)
+    mnf_days = sorted(floors[floors > floor_threshold].index.tolist())
 
     return {
         "mnf_alert": len(mnf_days) >= MIN_NIGHTS,
@@ -80,7 +92,9 @@ def mnf_trending(df: pd.DataFrame, baseline_nights: int = 28, rel_delta: float =
     floors = night.groupby(night_dates.values)["consumption_l"].min().sort_index()
 
     baseline = floors.rolling(baseline_nights, min_periods=7).median().shift(1)
-    threshold = baseline * (1 + rel_delta) + abs_delta_l
+    # Margen absoluto escalado a la resolución de la serie
+    abs_delta = abs_delta_l * _interval_minutes(ts) / 15.0
+    threshold = baseline * (1 + rel_delta) + abs_delta
     exceeds = (floors > threshold) & baseline.notna()
 
     # Persistencia: noches que forman parte de una racha >= min_nights

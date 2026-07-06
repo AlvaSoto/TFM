@@ -29,22 +29,13 @@ def list_households():
     Es instantáneo porque no ejecuta el modelo, solo lee la columna 'is_leak'.
     """
     try:
-        # 1. Accedemos al DataFrame completo cargado en memoria
-        df_all = data_loader.df
-        
-        # 2. Agrupamos por casa y miramos si el máximo de 'is_leak' es 1
-        # Esto nos dice instantáneamente qué casas tienen al menos un punto de fuga
-        leaks_map = df_all.groupby('household_id')['is_leak'].max()
-        
+        # Unión de contadores reales del piloto (SQLite) + dataset demo (CSV)
         result = []
-        for hid, has_leak in leaks_map.items():
-            # Nota de producto: NO revelamos el ground truth en la etiqueta
-            # (antes se marcaba con 💧 las casas con fuga real, delatando la respuesta).
-            profile = parse_profile(hid)
+        for hid in data_loader.get_all_household_ids():
             result.append({
                 "id": hid,
                 "label": hid,
-                "profile": profile,
+                "profile": parse_profile(hid),
             })
 
         return {"households": result}
