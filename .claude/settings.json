@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(/opt/anaconda3/envs/TFM/bin/python -m app.ml.evaluate_ensemble)"
+    ]
+  }
+}

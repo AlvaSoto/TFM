@@ -1,0 +1,31 @@
+# Smart Water Monitor — despliegue de piloto
+#
+#   1. cp backend/.env.example backend/.env   (y rellena INGEST_API_KEY como mínimo)
+#   2. docker compose up -d --build
+#   3. Consola en http://localhost:5173 · API en http://localhost:8000/docs
+#
+# El backend necesita el dataset demo en backend/data/ (se monta como volumen);
+# las lecturas reales del piloto se persisten en el mismo volumen (SQLite).
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - backend/.env
+    volumes:
+      - ./backend/data:/app/data
+      - ./backend/app/simulators:/app/app/simulators  # artefactos del modelo
+    restart: unless-stopped
+
+  frontend:
+    image: node:22-slim
+    working_dir: /web
+    volumes:
+      - ./frontend:/web
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped

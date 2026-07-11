@@ -68,8 +68,12 @@ backend/data/*.csv
 !backend/data/.gitkeep
 
 # === Datos y artefactos generados (se regeneran; el dataset supera el límite de GitHub) ===
-backend/data/
+backend/data/*
 backend/app/simulators/**/backup_modelo_antiguo*/
 
 # Documentos personales
 asotobarja_PEC4.pdf
+
+# Excepción: la evaluación es pequeña y la consume /system/info
+!backend/data/ensemble_evaluation.json
+backend/backups/

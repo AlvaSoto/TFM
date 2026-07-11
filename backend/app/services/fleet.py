@@ -22,7 +22,7 @@ from app.core.simulation_config import settings
 from app.core.water_prices import REGIONAL_PRICES
 from app.repository.data_loader import data_loader
 from app.services.detector import detector_service
-from app.services.night_flow import mnf_analysis, combine_alert_level
+from app.services.night_flow import mnf_analysis, mnf_trending, combine_alert_level
 from app.core.profiles import parse_profile
 
 CACHE_PATH = settings.BASE_DIR / "data" / "fleet_scores.json"
@@ -73,17 +73,47 @@ class FleetService:
             return cached
 
         df = data_loader.get_household_data(household_id)
-        analysis = detector_service.analyse_household(df)
+
+        # El LSTM está entrenado con series de 15 min: en contadores con otra
+        # resolución (p. ej. lecturas horarias reales) sus salidas no son
+        # fiables → se omite y la detección se apoya en la regla física
+        # (mnf_trending es agnóstica a la resolución).
+        interval_min = df["timestamp"].sort_values().diff().median().total_seconds() / 60
+        if 10 <= interval_min <= 20:
+            analysis = detector_service.analyse_household(df)
+        else:
+            analysis = {
+                "is_leak_detected": False, "anomalies_detected": 0,
+                "percentage_anomalies": 0.0, "anomalous_days": [],
+                "leak_period": {"start": None, "end": None},
+                "leak_details": {"worst_date": None},
+                "ml_skipped": f"resolución {interval_min:.0f} min ≠ 15 min del modelo",
+            }
 
         if "error" in analysis:
             summary = {"household_id": household_id, "error": analysis["error"], "schema": SCHEMA_VERSION}
         else:
-            loss_l = self.estimate_loss_liters(df, analysis["anomalous_days"])
+            loss_l = None  # se calcula tras el MNF (unión de días de ambos detectores)
             daily_avg = df.set_index("timestamp")["consumption_l"].resample("D").sum().mean()
 
-            # Ensemble: la regla física MNF confirma (o cuestiona) al modelo ML
-            mnf = mnf_analysis(df)
+            # Ensemble: la regla física MNF confirma (o cuestiona) al modelo ML.
+            # Hogares demo → regla absoluta (suelo nocturno ~0, comportamiento validado).
+            # Contadores reales del piloto y agregados (hotel/DMA) → MNF-trending:
+            # su suelo nocturno legítimo no es cero y el absoluto daría falsa
+            # CONFIRMADA permanente.
+            from app.repository.readings_store import readings_store
+            is_pilot = household_id in readings_store.meter_ids()
+            segment = parse_profile(household_id).get("segment", "hogar")
+            if is_pilot or segment != "hogar":
+                mnf = mnf_trending(df)
+            else:
+                mnf = mnf_analysis(df)
             alert_level = combine_alert_level(analysis["is_leak_detected"], mnf["mnf_alert"])
+
+            # Pérdida estimada sobre la unión de días marcados por ambos detectores
+            # (si la confirmación viene solo del MNF, esos días también cuentan)
+            all_anomalous_days = sorted(set(analysis["anomalous_days"]) | set(mnf["mnf_days"]))
+            loss_l = self.estimate_loss_liters(df, all_anomalous_days)
 
             summary = {
                 "household_id": household_id,
@@ -108,6 +138,15 @@ class FleetService:
                 "daily_avg_l": round(float(daily_avg), 1),
                 "scored_at": time.strftime("%Y-%m-%d %H:%M"),
             }
+
+        # Alerta saliente al TRANSICIONAR a CONFIRMADA (no en re-scorings repetidos)
+        prev_level = (cached or {}).get("alert_level")
+        if summary.get("alert_level") == "CONFIRMADA" and prev_level != "CONFIRMADA":
+            try:
+                from app.services.alerting import alert_service
+                alert_service.notify_confirmed_leak(summary)
+            except Exception as e:
+                print(f"[ALERT] fallo no bloqueante: {e}")
 
         self._scores[household_id] = summary
         self._trends_cache = None  # los agregados de red dependen de los scores
@@ -136,7 +175,28 @@ class FleetService:
     # ------------------------------------------------------------------
     # Tendencias de red: consumo agregado diario + hogares en alerta/día
     # ------------------------------------------------------------------
-    def get_trends(self) -> dict:
+    def get_trends(self, tenant: dict | None = None) -> dict:
+        # Tenant restringido (sin dataset demo): agregado de SUS contadores, al vuelo
+        if tenant is not None and not tenant.get("include_demo_dataset"):
+            ids = data_loader.get_all_household_ids(tenant)
+            if not ids:
+                return {"labels": [], "network_m3": [], "households_in_alert": []}
+            frames = [data_loader.get_household_data(i)[["timestamp", "consumption_l"]] for i in ids]
+            df = pd.concat(frames, ignore_index=True)
+            daily = df.set_index("timestamp")["consumption_l"].resample("D").sum() / 1000.0
+            labels = daily.index.strftime("%Y-%m-%d").tolist()
+            alert_counts: dict = {}
+            for mid in ids:
+                s = self._scores.get(mid)
+                if s and s.get("schema") == SCHEMA_VERSION and "error" not in s:
+                    for d in s.get("anomalous_days", []):
+                        alert_counts[d] = alert_counts.get(d, 0) + 1
+            return {
+                "labels": labels,
+                "network_m3": [round(float(v), 1) for v in daily.tolist()],
+                "households_in_alert": [alert_counts.get(d, 0) for d in labels],
+            }
+
         if self._trends_cache is not None:
             return self._trends_cache
 
@@ -159,9 +219,9 @@ class FleetService:
     # ------------------------------------------------------------------
     # Vista agregada para la gestora
     # ------------------------------------------------------------------
-    def get_overview(self, region: str = "Promedio Nacional") -> dict:
+    def get_overview(self, region: str = "Promedio Nacional", tenant: dict | None = None) -> dict:
         price = REGIONAL_PRICES.get(region, REGIONAL_PRICES["Promedio Nacional"])
-        all_ids = data_loader.get_all_household_ids()
+        all_ids = data_loader.get_all_household_ids(tenant)
 
         rows = []
         for hid in all_ids:

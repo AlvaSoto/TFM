@@ -23,6 +23,19 @@ class Settings:
 
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
+    # --- Kit de piloto ---
+    # Clave para la API de ingesta de lecturas reales (cabecera X-API-Key).
+    # Vacía = ingesta deshabilitada (nunca abierta por defecto).
+    INGEST_API_KEY: str = os.getenv("INGEST_API_KEY", "")
+    # Alertas salientes al confirmarse una fuga (todo opcional; sin configurar, solo log)
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER: str = os.getenv("SMTP_USER", "")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+    ALERT_EMAIL_FROM: str = os.getenv("ALERT_EMAIL_FROM", "")
+    ALERT_EMAIL_TO: str = os.getenv("ALERT_EMAIL_TO", "")
+    ALERT_WEBHOOK_URL: str = os.getenv("ALERT_WEBHOOK_URL", "")
+
 
 settings = Settings()
 
@@ -60,7 +73,10 @@ Numpy Arrays of 24 alues that sums 1.0. Used by generate event times()
 
 """
 HOURLY_PROBABILITY_COMMON = np.array([
-    0.01, 0.01, 0.01, 0.01, 0.2, 0.04, 0.08, 0.10, 0.008, 0.04, #00h-09h
+    # CORREGIDO 2026-07-08: la fila 00h-09h tenía dos erratas de un dígito
+    # (0.2 en 04h y 0.008 en 08h) que invertían el patrón, generando un pico
+    # falso a las 4 de la madrugada en vez de en el tramo 7-9h documentado.
+    0.01, 0.01, 0.01, 0.01, 0.02, 0.04, 0.08, 0.10, 0.08, 0.04, #00h-09h
     0.03, 0.03, 0.04, 0.04, 0.03, 0.03, 0.04, 0.05, 0.06, 0.08, #10h-19h
     0.10, 0.08, 0.05, 0.02                                      #20h-23h
 ])

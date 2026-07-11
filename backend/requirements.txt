@@ -9,3 +9,4 @@ openai==1.59.7
 python-multipart==0.0.20
 pydantic==2.10.4
 pydantic-settings==2.7.1
+lightgbm==4.6.0

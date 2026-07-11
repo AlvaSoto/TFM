@@ -1,0 +1,237 @@
+{
+  "cusum_params": {
+    "k": 0.9,
+    "h": 4.0,
+    "f1": 0.795,
+    "precision": 0.889,
+    "recall": 0.72
+  },
+  "test_meters": [
+    "meter_hotel_1958",
+    "meter_hotel_6077",
+    "meter_hotel_6104",
+    "meter_hotel_6585",
+    "meter_hotel_7282",
+    "meter_hotel_9503",
+    "meter_hotel_9659",
+    "meter_pueblo_1263",
+    "meter_pueblo_2353",
+    "meter_pueblo_5226",
+    "meter_pueblo_8465",
+    "meter_pueblo_9420"
+  ],
+  "day_level_metrics": {
+    "hotel": {
+      "Forecast+CUSUM": {
+        "precision": 0.188,
+        "recall": 0.464,
+        "f1": 0.268,
+        "tp": 13,
+        "fp": 56,
+        "fn": 15
+      },
+      "MNF-trending": {
+        "precision": 0.414,
+        "recall": 0.429,
+        "f1": 0.421,
+        "tp": 12,
+        "fp": 17,
+        "fn": 16
+      },
+      "AND (ambos)": {
+        "precision": 0.769,
+        "recall": 0.357,
+        "f1": 0.488,
+        "tp": 10,
+        "fp": 3,
+        "fn": 18
+      },
+      "OR (cobertura)": {
+        "precision": 0.176,
+        "recall": 0.536,
+        "f1": 0.265,
+        "tp": 15,
+        "fp": 70,
+        "fn": 13
+      }
+    },
+    "pueblo": {
+      "Forecast+CUSUM": {
+        "precision": 0.2,
+        "recall": 0.235,
+        "f1": 0.216,
+        "tp": 4,
+        "fp": 16,
+        "fn": 13
+      },
+      "MNF-trending": {
+        "precision": 0.538,
+        "recall": 0.412,
+        "f1": 0.467,
+        "tp": 7,
+        "fp": 6,
+        "fn": 10
+      },
+      "AND (ambos)": {
+        "precision": 0.8,
+        "recall": 0.235,
+        "f1": 0.364,
+        "tp": 4,
+        "fp": 1,
+        "fn": 13
+      },
+      "OR (cobertura)": {
+        "precision": 0.25,
+        "recall": 0.412,
+        "f1": 0.311,
+        "tp": 7,
+        "fp": 21,
+        "fn": 10
+      }
+    },
+    "TOTAL": {
+      "Forecast+CUSUM": {
+        "precision": 0.191,
+        "recall": 0.378,
+        "f1": 0.254,
+        "tp": 17,
+        "fp": 72,
+        "fn": 28
+      },
+      "MNF-trending": {
+        "precision": 0.452,
+        "recall": 0.422,
+        "f1": 0.437,
+        "tp": 19,
+        "fp": 23,
+        "fn": 26
+      },
+      "AND (ambos)": {
+        "precision": 0.778,
+        "recall": 0.311,
+        "f1": 0.444,
+        "tp": 14,
+        "fp": 4,
+        "fn": 31
+      },
+      "OR (cobertura)": {
+        "precision": 0.195,
+        "recall": 0.489,
+        "f1": 0.278,
+        "tp": 22,
+        "fp": 91,
+        "fn": 23
+      }
+    }
+  },
+  "per_meter": [
+    {
+      "meter": "meter_hotel_1958",
+      "segment": "hotel",
+      "leak_days_real": 6,
+      "fc_days": 10,
+      "mnf_days": 9,
+      "detected_fc": true,
+      "detected_mnf": true
+    },
+    {
+      "meter": "meter_hotel_6077",
+      "segment": "hotel",
+      "leak_days_real": 4,
+      "fc_days": 15,
+      "mnf_days": 7,
+      "detected_fc": true,
+      "detected_mnf": true
+    },
+    {
+      "meter": "meter_hotel_6104",
+      "segment": "hotel",
+      "leak_days_real": 3,
+      "fc_days": 11,
+      "mnf_days": 8,
+      "detected_fc": true,
+      "detected_mnf": true
+    },
+    {
+      "meter": "meter_hotel_6585",
+      "segment": "hotel",
+      "leak_days_real": 0,
+      "fc_days": 5,
+      "mnf_days": 0,
+      "detected_fc": null,
+      "detected_mnf": null
+    },
+    {
+      "meter": "meter_hotel_7282",
+      "segment": "hotel",
+      "leak_days_real": 7,
+      "fc_days": 8,
+      "mnf_days": 0,
+      "detected_fc": true,
+      "detected_mnf": false
+    },
+    {
+      "meter": "meter_hotel_9503",
+      "segment": "hotel",
+      "leak_days_real": 0,
+      "fc_days": 7,
+      "mnf_days": 3,
+      "detected_fc": null,
+      "detected_mnf": null
+    },
+    {
+      "meter": "meter_hotel_9659",
+      "segment": "hotel",
+      "leak_days_real": 8,
+      "fc_days": 13,
+      "mnf_days": 2,
+      "detected_fc": false,
+      "detected_mnf": true
+    },
+    {
+      "meter": "meter_pueblo_1263",
+      "segment": "pueblo",
+      "leak_days_real": 0,
+      "fc_days": 0,
+      "mnf_days": 0,
+      "detected_fc": null,
+      "detected_mnf": null
+    },
+    {
+      "meter": "meter_pueblo_2353",
+      "segment": "pueblo",
+      "leak_days_real": 10,
+      "fc_days": 5,
+      "mnf_days": 11,
+      "detected_fc": true,
+      "detected_mnf": true
+    },
+    {
+      "meter": "meter_pueblo_5226",
+      "segment": "pueblo",
+      "leak_days_real": 0,
+      "fc_days": 6,
+      "mnf_days": 2,
+      "detected_fc": null,
+      "detected_mnf": null
+    },
+    {
+      "meter": "meter_pueblo_8465",
+      "segment": "pueblo",
+      "leak_days_real": 0,
+      "fc_days": 2,
+      "mnf_days": 0,
+      "detected_fc": null,
+      "detected_mnf": null
+    },
+    {
+      "meter": "meter_pueblo_9420",
+      "segment": "pueblo",
+      "leak_days_real": 7,
+      "fc_days": 7,
+      "mnf_days": 0,
+      "detected_fc": false,
+      "detected_mnf": false
+    }
+  ]
+}

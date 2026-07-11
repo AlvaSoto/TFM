@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { getHouseholds, analyzeHousehold, getRegions } from './services/api';
-import { Droplets, LayoutDashboard, User, ShieldCheck, MapPin } from 'lucide-react';
+import { getHouseholds, analyzeHousehold, getRegions, getAuthMode, getMe, logout } from './services/api';
+import { Droplets, LayoutDashboard, User, ShieldCheck, MapPin, LogOut } from 'lucide-react';
 
 import FleetOverview from './components/FleetOverview';
 import HouseholdView from './components/HouseholdView';
 import SystemPanel from './components/SystemPanel';
+import LoginScreen from './components/LoginScreen';
 
 const NAV = [
   { id: 'fleet', label: 'Operaciones', icon: LayoutDashboard, hint: 'Flota y alertas' },
@@ -22,6 +23,9 @@ function App() {
   // Navegación
   const [view, setView] = useState('fleet');
 
+  // Sesión multi-tenant: null = comprobando, false = login requerido, objeto = dentro
+  const [session, setSession] = useState(null);
+
   // Datos maestros
   const [households, setHouseholds] = useState([]);
   const [regions, setRegions] = useState([]);
@@ -35,7 +39,34 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // 1. Resolver la sesión: modo abierto (demo) o login por tenant
   useEffect(() => {
+    const resolveSession = async () => {
+      try {
+        const mode = await getAuthMode();
+        if (!mode.auth_enabled) {
+          setSession({ id: 'demo', name: 'Smart Water', branding: {} });
+          return;
+        }
+        // Auth activa: valida el token guardado (si existe)
+        try {
+          const me = await getMe();
+          setSession({ id: me.id, name: me.name, branding: me.branding || {} });
+        } catch {
+          setSession(false); // sin sesión válida → login
+        }
+      } catch (e) {
+        console.error(e);
+        setError('Error de conexión con el servidor. Verifica que el backend está corriendo.');
+        setSession(false);
+      }
+    };
+    resolveSession();
+  }, []);
+
+  // 2. Con sesión: cargar datos maestros
+  useEffect(() => {
+    if (!session) return;
     const init = async () => {
       try {
         const [h, r] = await Promise.all([getHouseholds(), getRegions()]);
@@ -47,7 +78,7 @@ function App() {
       }
     };
     init();
-  }, []);
+  }, [session]);
 
   const handleAnalyze = async (houseId = selectedHouse) => {
     if (!houseId) return;
@@ -74,6 +105,17 @@ function App() {
 
   const { title, sub } = VIEW_TITLES[view];
 
+  // Pantallas de sesión
+  if (session === null) {
+    return <div className="min-h-screen grid place-items-center text-slate-400 text-sm">Conectando…</div>;
+  }
+  if (session === false) {
+    return <LoginScreen onLoggedIn={(tenant) => setSession(tenant)} />;
+  }
+
+  const brandName = session.branding?.name || session.name || 'Smart Water';
+  const brandColor = session.branding?.color || '#2a78d6';
+
   return (
     <div className="min-h-screen flex">
 
@@ -82,14 +124,14 @@ function App() {
         className="w-60 shrink-0 flex flex-col text-slate-300"
         style={{ background: 'var(--sidebar)' }}
       >
-        {/* Marca (white-label: aquí va el logo de la gestora) */}
+        {/* Marca white-label: nombre y color del tenant */}
         <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
-          <div className="bg-gradient-to-br from-sky-500 to-blue-700 text-white p-2 rounded-xl">
+          <div className="text-white p-2 rounded-xl" style={{ background: brandColor }}>
             <Droplets size={20} strokeWidth={2.5} />
           </div>
           <div className="min-w-0">
-            <div className="font-bold text-white leading-tight">Smart Water</div>
-            <div className="text-[11px] text-slate-400 leading-tight">Consola de la gestora</div>
+            <div className="font-bold text-white leading-tight truncate">{brandName}</div>
+            <div className="text-[11px] text-slate-400 leading-tight">Consola de operaciones</div>
           </div>
         </div>
 
@@ -119,12 +161,20 @@ function App() {
         </nav>
 
         {/* Pie */}
-        <div className="px-5 py-4 border-t border-white/10 text-[11px] text-slate-500 space-y-1">
+        <div className="px-5 py-4 border-t border-white/10 text-[11px] text-slate-500 space-y-2">
           <div className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
             Sistema operativo
           </div>
-          <div>Smart Water Monitor · v2.1</div>
+          <div className="flex items-center justify-between">
+            <span>Smart Water Monitor · v2.2</span>
+            {session.id !== 'demo' && (
+              <button onClick={logout} title="Cerrar sesión"
+                      className="text-slate-500 hover:text-slate-300 transition-colors">
+                <LogOut size={14} />
+              </button>
+            )}
+          </div>
         </div>
       </aside>
 

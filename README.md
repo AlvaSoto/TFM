@@ -1,402 +1,157 @@
 # 💧 Smart Water Monitor
 
-<div align="center">
+**Detección temprana de fugas de agua para hoteles, municipios y gestoras.**
 
-![Version](https://img.shields.io/badge/version-2.0-blue.svg)
-![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)
-![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
-![TensorFlow](https://img.shields.io/badge/TensorFlow-2.18-FF6F00?logo=tensorflow&logoColor=white)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
+Monitorización continua de contadores con doble verificación — la física del
+contador confirma, la IA amplía la búsqueda — y traducción de cada anomalía a
+litros y euros. Multi-tenant, white-label y desplegable en la infraestructura
+del cliente.
 
-**Plataforma Inteligente de Detección de Fugas Hídricas mediante Deep Learning**
-
-[Ver Demo](#) · [Documentación](#) · [Reportar Bug](https://github.com/AlvaSoto/TFM/issues)
-
-</div>
+> 🌐 Landing de producto: [`landing/index.html`](landing/index.html) ·
+> 📋 Propuesta de piloto: [`docs/PROPUESTA_PILOTO_PLANTILLA.md`](docs/PROPUESTA_PILOTO_PLANTILLA.md) ·
+> 🗺 Guía go-to-market: [`docs/GUIA_GO_TO_MARKET.md`](docs/GUIA_GO_TO_MARKET.md)
 
 ---
 
-## 🎯 Descripción del Proyecto
+## Cómo detecta
 
-Smart Water Monitor es una plataforma de monitorización en tiempo real que utiliza técnicas avanzadas de **Deep Learning** para detectar anomalías en el consumo de agua, prevenir pérdidas y optimizar el uso de recursos hídricos.
+Ensemble de dos detectores independientes por segmento:
 
-### 🏆 Trabajo Final de Máster
-- **Institución:** Universidad Europea
-- **Programa:** Máster en Inteligencia Artificial
-- **Año:** 2026
-- **Autor:** Álvaro Soto Álvarez
+| Detector | Qué ve | Papel |
+|---|---|---|
+| **Caudal Mínimo Nocturno** (regla física) | El agua que nunca deja de correr de madrugada. En agregados (hotel/DMA), *MNF-trending*: el mínimo nocturno contra su propia línea base | **CONFIRMA** (precisión 1.0 medida en banco de pruebas) |
+| **Modelo ML** (LSTM-AE en hogares; forecaster cuantílico LightGBM + CUSUM en agregados) | Desviaciones sostenidas del patrón aprendido, condicionadas a calendario/ocupación/temperatura | **AMPLÍA** cobertura (cola de sospechas) |
 
----
+Niveles de alerta: `CONFIRMADA` (aviso automático por email/webhook) ·
+`SOSPECHA` (cola de revisión) · `OK`.
 
-## ✨ Características Principales
+El detector físico (MNF/MNF-trending) es agnóstico a la resolución del
+contador (15 min o 1 h). El LSTM de hogares está entrenado a 15 min: en
+contadores reales con otra resolución se omite automáticamente y la
+detección se apoya solo en la física — no genera falsos positivos por
+comparar peras con manzanas.
 
-### 🤖 IA Predictiva
-- **LSTM Autoencoder** entrenado con 2.7M puntos de datos
-- **ROC-AUC: 93.7%** - Excelente capacidad de discriminación
-- **Recall: 71%** - Detecta 7 de cada 10 fugas reales
-- Análisis mediante MSE (Mean Squared Error)
-- Umbral adaptativo (Percentil 96)
+**Transparencia radical**: cada versión se evalúa contra escenarios de fuga
+etiquetados sobre instalaciones que el modelo nunca vio, y la vista *Sistema*
+de la consola muestra en vivo el modelo desplegado, su umbral, su origen y
+las métricas de la última evaluación. Métricas actuales (banco de pruebas
+sintético, nivel hogar, instalaciones no vistas en entrenamiento):
 
-### 📊 Dashboard Interactivo
-- Visualización de consumo en tiempo real
-- Gráficas interactivas con Recharts
-- Comparativas con la comunidad
-- Alertas visuales de fugas
+| Nivel de alerta | Precisión | Cobertura |
+|---|---|---|
+| `CONFIRMADA` (solo MNF) | 1.00 | 0.81 |
+| `CONFIRMADA` + `SOSPECHA` (+ IA) | 0.86 | 0.93 |
 
-### 🧠 Asistente IA (GPT-4o)
-- Recomendaciones personalizadas
-- Análisis de impacto económico
-- Consejos de optimización
-- Diagnósticos automáticos
+En contadores agregados (hoteles/DMA): 6 de 7 instalaciones con fuga
+detectadas en el banco de pruebas. Estas cifras se reproducen con
+`python -m app.ml.evaluate_ensemble` / `python -m app.ml.evaluate_aggregated`
+(quedan en `data/ensemble_evaluation.json` y `data/aggregated_evaluation.json`,
+la fuente que lee la vista *Sistema* de la consola). El procedimiento para
+reentrenar y volver a evaluar antes de desplegar está en
+[`docs/PLAYBOOK_RECALIBRACION.md`](docs/PLAYBOOK_RECALIBRACION.md).
 
-### 📈 Análisis Financiero
-- Estimación de factura mensual
-- Cálculo de costes por región
-- Historial de consumo
-- Análisis de ahorro potencial
+## La consola
 
----
+Tres vistas sobre React + FastAPI:
 
-## 🚀 Tecnologías Utilizadas
+- **Operaciones** — KPIs de flota, tendencias de red y cola de intervención
+  priorizada por pérdida estimada en €.
+- **Vista Hogar** — lo que ve el usuario final en la app white-label:
+  consumo, factura estimada por tarifa regional, alertas explicadas y
+  asistente en lenguaje natural (LLM).
+- **Sistema** — trazabilidad completa para la due diligence técnica.
 
-### Backend
-```
-Python 3.10
-├── FastAPI          # API REST de alto rendimiento
-├── TensorFlow 2.18  # Deep Learning Framework
-├── Keras 3.12       # API de alto nivel para redes neuronales
-├── Pandas & NumPy   # Análisis de datos
-├── Scikit-learn     # Preprocesamiento y métricas
-└── OpenAI API       # Integración con GPT-4o
-```
+## Arranque rápido (demo local)
 
-### Frontend
-```
-React 18
-├── Vite             # Build tool ultrarrápido
-├── Tailwind CSS     # Framework de estilos
-├── Recharts         # Visualización de datos
-├── Framer Motion    # Animaciones fluidas
-└── Lucide Icons     # Iconos modernos
-```
+Requisitos: Python 3.11 (conda recomendado), Node 20+.
 
-### Machine Learning
-
-**Arquitectura: LSTM Autoencoder para Detección de Anomalías**
-
-```
-Input: Secuencia de 96 timesteps (24h con intervalos de 15 min) × 14 features
-
-Encoder (Compresión):
-├── LSTM Layer 1: 256 unidades → Aprende patrones complejos
-├── LSTM Layer 2: 128 unidades → Reduce dimensionalidad
-└── LSTM Layer 3: 64 unidades  → Representación latente compacta
-
-Bottleneck (Latent Space):
-└── 64 dimensiones → Codificación del patrón normal
-
-Decoder (Reconstrucción):
-├── LSTM Layer 4: 64 unidades  → Expande desde latent space
-├── LSTM Layer 5: 128 unidades → Reconstruye secuencia
-├── LSTM Layer 6: 256 unidades → Detalle fino
-└── Dense Layer: 14 outputs    → Reconstrucción de features
-
-Output: Secuencia reconstruida (mismo tamaño que input)
-
-Pérdida: MSE (Mean Squared Error)
-└── MSE bajo  → Patrón normal (reconstrucción exitosa)
-└── MSE alto  → Anomalía detectada (reconstrucción fallida)
-
-Training:
-├── Datos: 2.7M registros (solo consumo normal)
-├── Épocas: 150 con Early Stopping
-├── Batch Size: 256
-└── Validación: 15% del dataset
-```
-
-**¿Cómo detecta fugas?**
-1. El modelo aprende a reconstruir SOLO consumo normal
-2. Cuando ve una fuga, intenta reconstruirla como consumo normal
-3. Falla → MSE aumenta significativamente
-4. Si MSE > umbral (0.52) → ALERTA DE FUGA
-
----
-
-## 📊 Dataset & Métricas
-
-### Simulación de Datos
-- **160 hogares** con perfiles diversos
-- **180 días** de monitorización continua
-- **Intervalos de 15 minutos** (96 mediciones/día)
-- **2,764,800 puntos de datos** en total
-
-### Tipos de Hogares Simulados
-- Apartamento (persona sola)
-- Apartamento (familia 4 personas)
-- Casa con jardín (familia 4 personas)
-
-### Métricas de Rendimiento
-| Métrica | Valor | Descripción |
-|---------|-------|-------------|
-| ROC-AUC | 93.7% | Capacidad de discriminación |
-| Recall | 71% | Detecta 7/10 fugas reales |
-| Precision | 48% | Balance FP/TP optimizado |
-| Umbral | MSE > 0.52 | Percentil 96 |
-| Dataset | 2.7M registros | 150 épocas entrenamiento |
-| Latencia | < 1s | Detección en tiempo real |
-
----
-
-## 🛠️ Instalación
-
-### Requisitos Previos
-- Python 3.10+
-- Node.js 22.12.0+
-- Anaconda/Miniconda (recomendado)
-
-### 1. Clonar el Repositorio
 ```bash
-git clone https://github.com/AlvaSoto/TFM.git
-cd TFM
-```
-
-### 2. Configurar Backend
-
-#### Opción A: Con Anaconda (Recomendado)
-```bash
-conda create -n TFM python=3.10
-conda activate TFM
+# Backend
 cd backend
+conda create -n swm python=3.11 && conda activate swm
 pip install -r requirements.txt
+python -m app.simulators.water_compsumption_simulator   # genera el dataset demo
+uvicorn app.api.router:app --reload                     # http://localhost:8000/docs
+
+# Frontend (otra terminal)
+cd frontend && npm install && npm run dev               # http://localhost:5173
 ```
 
-#### Opción B: Con venv
-```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate  # En Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
+Con Docker: `cp backend/.env.example backend/.env` → `docker compose up -d --build`.
 
-### 3. Configurar Frontend
-```bash
-cd frontend
-npm install
-```
-
----
-
-## 🚀 Uso
-
-### Iniciar Backend
-```bash
-# Con Makefile
-make run-backend
-
-# O manualmente
-cd backend
-uvicorn app.api.router:app --reload
-```
-
-El backend estará disponible en: `http://localhost:8000`
-
-### Iniciar Frontend
-```bash
-# Con Makefile
-make run-frontend
-
-# O manualmente
-cd frontend
-npm run dev
-```
-
-El frontend estará disponible en: `http://localhost:5173`
-
-### Comandos Útiles
-```bash
-make install-backend    # Instalar dependencias backend
-make install-frontend   # Instalar dependencias frontend
-make clean-all         # Limpiar archivos temporales
-```
-
----
-
-## 📁 Estructura del Proyecto
-
-```
-TFM/
-├── backend/
-│   ├── app/
-│   │   ├── api/              # Endpoints FastAPI
-│   │   ├── core/             # Configuración
-│   │   ├── models/           # Modelos de datos
-│   │   ├── services/         # Lógica de negocio
-│   │   ├── simulators/       # Simulador de datos
-│   │   └── ml/               # Notebooks ML
-│   ├── data/                 # Datasets
-│   └── requirements.txt
-│
-├── frontend/
-│   ├── src/
-│   │   ├── components/       # Componentes React
-│   │   ├── services/         # API client
-│   │   └── App.jsx
-│   └── package.json
-│
-└── Makefile                  # Automatización
-```
-
----
-
-## 🔬 Arquitectura del Sistema
-
-### Enfoque: Detección de Anomalías mediante Autoencoder
-
-El sistema utiliza un **LSTM Autoencoder** que aprende a reconstruir patrones de consumo normales. Cuando encuentra una fuga, el error de reconstrucción (MSE) aumenta significativamente.
-
-#### 📐 Proceso de Detección
-
-1. **Entrenamiento**: El modelo aprende únicamente de datos normales (sin fugas)
-2. **Reconstrucción**: Para nuevos datos, intenta reconstruir el patrón
-3. **Error MSE**: Calcula la diferencia entre entrada y reconstrucción
-4. **Umbral**: Si MSE > 0.52 (percentil 96) → Alerta de fuga
-5. **Decisión**: Prioriza Recall sobre Precision para evitar fugas no detectadas
-
-#### 🎯 Balance Precision vs Recall
-
-```
-Percentil 96 (Configuración Actual):
-├─ Recall: 71% → Detecta 7 de cada 10 fugas
-├─ Precision: 48% → 1 de cada 2 alertas es real fuga
-└─ Filosofía: Mejor un falso positivo que una fuga sin detectar
-
-Percentil 99 (Más conservador):
-├─ Recall: 35% → Solo detecta las fugas más evidentes
-├─ Precision: 95% → Muy pocas falsas alarmas
-└─ Riesgo: Pierde muchas fugas sutiles
-```
-
-#### 🧠 ¿Por qué funciona?
-
-- **Clase desbalanceada**: 133,768 registros normales vs 3,725 con fugas
-- **Aprendizaje no supervisado**: No necesita ejemplos de fugas para entrenar
-- **ROC-AUC 93.7%**: El modelo tiene 93.7% de probabilidad de asignar mayor error a una fuga que a consumo normal
-- **MSE como proxy**: Un error alto de reconstrucción indica patrón anómalo
-
-```
-┌─────────────────┐
-│   Frontend      │
-│   React + Vite  │
-└────────┬────────┘
-         │ HTTP/REST
-         ▼
-┌─────────────────┐
-│   API Gateway   │
-│    FastAPI      │
-└────────┬────────┘
-         │
-    ┌────┴─────────────────┐
-    │                      │
-    ▼                      ▼
-┌─────────┐          ┌──────────┐
-│  Data   │          │ ML Model │
-│ Service │          │  LSTM    │
-└─────────┘          └──────────┘
-    │                      │
-    ▼                      ▼
-┌──────────────────────────────┐
-│      Detector Service         │
-│  - Feature Engineering        │
-│  - Anomaly Detection          │
-│  - Threshold Analysis         │
-└──────────────────────────────┘
-```
-
----
-
-## 🧪 Generar Nuevo Dataset
-
-Para crear un nuevo dataset simulado:
+## Tests
 
 ```bash
 cd backend
-python -m app.simulators.water_compsumption_simulator
+pip install -r requirements-dev.txt
+pytest              # 39 tests: lógica de detección, aislamiento multi-tenant,
+                     # ingesta, y la API real end-to-end (TestClient sobre la
+                     # app real, con el modelo y el dataset demo cargados)
 ```
 
-Esto generará:
-- `mixed_population_dataset_160_households_more_leaks.csv`
-- `detailed_events_log_160_households.csv`
+Los tests que crean tenants/lecturas de prueba lo hacen contra
+`backend/data/` real (es la única forma de probar el flujo HTTP completo,
+ya que los routers enlazan sus dependencias al importar) y se limpian solos
+en un `finally` — nunca dejan residuos que rompan el modo abierto de la demo.
+Un `conftest.py` con guardas de sesión lo verifica antes y después de correr
+la suite.
 
----
+## Conectar un contador real (kit de piloto)
 
-## 📸 Capturas de Pantalla
+1. Crea el cliente y sus credenciales:
+   ```bash
+   python -m app.core.tenants create --id hotel_costa --name "Hotel Costa" --email ops@cliente.com
+   ```
+2. El dispositivo/pasarela envía lecturas (intervalo o índice acumulado):
+   ```bash
+   curl -X POST https://tu-servidor/api/v1/ingest/readings \
+     -H "X-API-Key: <api_key_del_tenant>" -H "Content-Type: application/json" \
+     -d '{"meter_id":"hotel_costa_general","value_type":"cumulative",
+          "readings":[{"timestamp":"2026-07-06T10:00:00","value":184230}]}'
+   ```
+   También hay ingesta CSV: `POST /api/v1/ingest/csv` (exports de plataformas AMI).
+   En modo `cumulative`, la primera lectura de un contador nunca genera consumo
+   (no hay índice previo con el que calcular el delta) — `inserted: 0` en esa
+   primera llamada es el comportamiento correcto, no un fallo.
+3. El contador aparece en la consola del tenant y entra en el ciclo nocturno.
 
-### Landing Page
-![Landing Page](screenshots/landing.png)
+**Operación** (crontab del servidor):
 
-### Dashboard Principal
-![Dashboard](screenshots/dashboard.png)
+```cron
+15 6 * * *  python -m app.jobs.nightly          # re-análisis + alertas
+0  8 * * 1  python -m app.jobs.weekly_report    # informe semanal por tenant
+30 5 * * *  scripts/backup.sh /ruta/backups     # backup con rotación 14 días
+```
 
-### Detección de Fugas
-![Leak Detection](screenshots/leak-detection.png)
+Monitorización de uptime: apunta UptimeRobot (o similar) a `GET /health`.
 
----
+## Estructura
 
-## 🎯 Roadmap
+```
+backend/
+├── app/api/          # FastAPI: consola, ingesta, auth multi-tenant, /health
+├── app/services/     # detección (detector, night_flow, fleet), alertas, LLM
+├── app/ml/           # entrenamiento limpio, forecaster+CUSUM, evaluaciones
+├── app/jobs/         # nightly (scoring+alertas) y weekly_report
+├── app/simulators/   # bancos de prueba: hogares y contadores agregados
+├── tests/            # suite pytest (39 tests, ver sección Tests)
+└── scripts/          # backup.sh
+frontend/             # consola React (Operaciones / Hogar / Sistema)
+landing/              # página de producto (estática, self-contained)
+docs/                 # go-to-market, propuesta de piloto, playbook recalibración
+legal/                # plantillas ToS, DPA y notas RGPD/DPIA
+```
 
-- [x] Desarrollo del modelo LSTM Autoencoder
-- [x] API REST con FastAPI
-- [x] Dashboard interactivo con React
-- [x] Integración con GPT-4o
-- [x] Sistema de alertas en tiempo real
-- [ ] Aplicación móvil (iOS/Android)
-- [ ] Notificaciones push
-- [ ] Integración con sensores IoT
-- [ ] Despliegue en producción (AWS/GCP)
+## Reentrenamiento
 
----
+- Forecaster de agregados: `python -m app.ml.forecaster` (~1 min, CPU).
+- LSTM de hogares: `app/ml/kaggle_train_clean.ipynb` (GPU gratuita de Kaggle).
+- Procedimiento completo de validación y despliegue:
+  [`docs/PLAYBOOK_RECALIBRACION.md`](docs/PLAYBOOK_RECALIBRACION.md).
 
-## 🤝 Contribuciones
+## Origen y licencia
 
-Las contribuciones son bienvenidas. Por favor:
+Nacido como Trabajo de Fin de Máster (UOC, Smart Cities) de
+**Álvaro Soto** y evolucionado a producto. Licencia MIT.
 
-1. Fork el proyecto
-2. Crea tu rama de características (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
-
----
-
-## 📄 Licencia
-
-Este proyecto está bajo la Licencia MIT. Ver `LICENSE` para más información.
-
----
-
-## 👤 Autor
-
-**Álvaro Soto Álvarez**
-
-- LinkedIn: [linkedin.com/in/alvarosoto](https://linkedin.com/in/alvarosoto)
-- GitHub: [@AlvaSoto](https://github.com/AlvaSoto)
-- Email: contact@example.com
-
----
-
-## 🙏 Agradecimientos
-
-- Universidad Europea - Programa de Máster en IA
-- OpenAI - Por la API de GPT-4o
-- Comunidad de TensorFlow y React
-- Todos los contribuidores del proyecto
-
----
-
-<div align="center">
-
-**⭐ Si te ha gustado este proyecto, considera darle una estrella ⭐**
-
-Desarrollado con ❤️ por Álvaro Soto Álvarez © 2026
-
-</div>
+📫 asotobarja@gmail.com
