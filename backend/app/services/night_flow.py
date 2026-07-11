@@ -6,9 +6,10 @@ madrugada el consumo legítimo de un hogar debería tocar cero en algún momento
 Si el caudal NUNCA baja de un suelo durante toda la ventana nocturna, hay agua
 circulando de forma continua: la firma física de una fuga.
 
-Se usa como CONFIRMADOR del modelo ML en el ensemble de la vista de flota:
-  - ML + MNF de acuerdo  -> alerta CONFIRMADA (alta precisión)
-  - solo uno de los dos  -> SOSPECHA (revisar)
+Es el detector PRIMARIO del ensemble (ver combine_alert_level más abajo):
+  - MNF activo      -> alerta CONFIRMADA (precisión 1.0 medida en evaluación,
+                        ver docs/PLAYBOOK_RECALIBRACION.md)
+  - Solo el ML activo, sin MNF -> SOSPECHA (cola de revisión)
 
 Es intencionadamente simple, explicable ante una gestora ("el contador no ha
 parado en toda la noche") y ejecutable en el propio contador (edge).

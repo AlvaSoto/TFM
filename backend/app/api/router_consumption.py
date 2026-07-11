@@ -125,6 +125,9 @@ def get_system_info(tenant: dict = Depends(current_tenant)):
         eval_path = settings.BASE_DIR / "data" / "ensemble_evaluation.json"
         evaluation = json.loads(eval_path.read_text()) if eval_path.exists() else None
 
+        agg_eval_path = settings.BASE_DIR / "data" / "aggregated_evaluation.json"
+        evaluation_aggregated = json.loads(agg_eval_path.read_text()) if agg_eval_path.exists() else None
+
         df = data_loader.df
         scored = sum(
             1 for s in fleet_service._scores.values()
@@ -158,6 +161,7 @@ def get_system_info(tenant: dict = Depends(current_tenant)):
             "fleet": {"scored": scored, "total": int(df["household_id"].nunique())},
             "versions": {"tensorflow": tf.__version__, "scikit_learn": sklearn.__version__},
             "last_evaluation": evaluation,
+            "last_evaluation_aggregated": evaluation_aggregated,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

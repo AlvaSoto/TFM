@@ -25,13 +25,30 @@ Ensemble de dos detectores independientes por segmento:
 Niveles de alerta: `CONFIRMADA` (aviso automático por email/webhook) ·
 `SOSPECHA` (cola de revisión) · `OK`.
 
+El detector físico (MNF/MNF-trending) es agnóstico a la resolución del
+contador (15 min o 1 h). El LSTM de hogares está entrenado a 15 min: en
+contadores reales con otra resolución se omite automáticamente y la
+detección se apoya solo en la física — no genera falsos positivos por
+comparar peras con manzanas.
+
 **Transparencia radical**: cada versión se evalúa contra escenarios de fuga
 etiquetados sobre instalaciones que el modelo nunca vio, y la vista *Sistema*
 de la consola muestra en vivo el modelo desplegado, su umbral, su origen y
 las métricas de la última evaluación. Métricas actuales (banco de pruebas
-sintético, día-nivel, instalaciones no vistas): alertas confirmadas con
-**precisión 1.0**, cobertura del **92% de hogares con fuga** (ensemble), 6/7
-instalaciones agregadas con fuga detectadas.
+sintético, nivel hogar, instalaciones no vistas en entrenamiento):
+
+| Nivel de alerta | Precisión | Cobertura |
+|---|---|---|
+| `CONFIRMADA` (solo MNF) | 1.00 | 0.81 |
+| `CONFIRMADA` + `SOSPECHA` (+ IA) | 0.86 | 0.93 |
+
+En contadores agregados (hoteles/DMA): 6 de 7 instalaciones con fuga
+detectadas en el banco de pruebas. Estas cifras se reproducen con
+`python -m app.ml.evaluate_ensemble` / `python -m app.ml.evaluate_aggregated`
+(quedan en `data/ensemble_evaluation.json` y `data/aggregated_evaluation.json`,
+la fuente que lee la vista *Sistema* de la consola). El procedimiento para
+reentrenar y volver a evaluar antes de desplegar está en
+[`docs/PLAYBOOK_RECALIBRACION.md`](docs/PLAYBOOK_RECALIBRACION.md).
 
 ## La consola
 
@@ -62,6 +79,23 @@ cd frontend && npm install && npm run dev               # http://localhost:5173
 
 Con Docker: `cp backend/.env.example backend/.env` → `docker compose up -d --build`.
 
+## Tests
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest              # 39 tests: lógica de detección, aislamiento multi-tenant,
+                     # ingesta, y la API real end-to-end (TestClient sobre la
+                     # app real, con el modelo y el dataset demo cargados)
+```
+
+Los tests que crean tenants/lecturas de prueba lo hacen contra
+`backend/data/` real (es la única forma de probar el flujo HTTP completo,
+ya que los routers enlazan sus dependencias al importar) y se limpian solos
+en un `finally` — nunca dejan residuos que rompan el modo abierto de la demo.
+Un `conftest.py` con guardas de sesión lo verifica antes y después de correr
+la suite.
+
 ## Conectar un contador real (kit de piloto)
 
 1. Crea el cliente y sus credenciales:
@@ -76,6 +110,9 @@ Con Docker: `cp backend/.env.example backend/.env` → `docker compose up -d --b
           "readings":[{"timestamp":"2026-07-06T10:00:00","value":184230}]}'
    ```
    También hay ingesta CSV: `POST /api/v1/ingest/csv` (exports de plataformas AMI).
+   En modo `cumulative`, la primera lectura de un contador nunca genera consumo
+   (no hay índice previo con el que calcular el delta) — `inserted: 0` en esa
+   primera llamada es el comportamiento correcto, no un fallo.
 3. El contador aparece en la consola del tenant y entra en el ciclo nocturno.
 
 **Operación** (crontab del servidor):
@@ -97,6 +134,7 @@ backend/
 ├── app/ml/           # entrenamiento limpio, forecaster+CUSUM, evaluaciones
 ├── app/jobs/         # nightly (scoring+alertas) y weekly_report
 ├── app/simulators/   # bancos de prueba: hogares y contadores agregados
+├── tests/            # suite pytest (39 tests, ver sección Tests)
 └── scripts/          # backup.sh
 frontend/             # consola React (Operaciones / Hogar / Sistema)
 landing/              # página de producto (estática, self-contained)

@@ -73,7 +73,10 @@ Numpy Arrays of 24 alues that sums 1.0. Used by generate event times()
 
 """
 HOURLY_PROBABILITY_COMMON = np.array([
-    0.01, 0.01, 0.01, 0.01, 0.2, 0.04, 0.08, 0.10, 0.008, 0.04, #00h-09h
+    # CORREGIDO 2026-07-08: la fila 00h-09h tenía dos erratas de un dígito
+    # (0.2 en 04h y 0.008 en 08h) que invertían el patrón, generando un pico
+    # falso a las 4 de la madrugada en vez de en el tramo 7-9h documentado.
+    0.01, 0.01, 0.01, 0.01, 0.02, 0.04, 0.08, 0.10, 0.08, 0.04, #00h-09h
     0.03, 0.03, 0.04, 0.04, 0.03, 0.03, 0.04, 0.05, 0.06, 0.08, #10h-19h
     0.10, 0.08, 0.05, 0.02                                      #20h-23h
 ])

@@ -56,6 +56,7 @@ export default function SystemPanel() {
   }
 
   const evalMetrics = info.last_evaluation?.day_level_metrics;
+  const aggMetrics = info.last_evaluation_aggregated?.day_level_metrics;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
@@ -126,6 +127,32 @@ export default function SystemPanel() {
           </p>
         )}
       </SectionCard>
+
+      {aggMetrics && (
+        <SectionCard icon={FlaskConical} title="Evaluación agregados (hoteles / pueblos-DMA)">
+          {Object.entries(aggMetrics).map(([segment, dets]) => (
+            <div key={segment} className="mb-4 last:mb-0">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1.5">{segment}</p>
+              <table className="w-full text-sm">
+                <tbody>
+                  {Object.entries(dets).map(([name, m]) => (
+                    <tr key={name} className="border-b border-slate-100 last:border-0">
+                      <td className="py-1.5 pr-3 text-slate-600">{name}</td>
+                      <td className="py-1.5 pr-3 text-right tabular text-slate-500 text-xs">P {m.precision}</td>
+                      <td className="py-1.5 pr-3 text-right tabular text-slate-500 text-xs">R {m.recall}</td>
+                      <td className="py-1.5 text-right tabular font-semibold text-slate-800 text-xs">F1 {m.f1}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+          <p className="text-[11px] text-slate-400 mt-1">
+            Forecaster cuantílico (LightGBM) + CUSUM vs. MNF-trending, sobre contadores de
+            test nunca vistos en el entrenamiento del forecaster.
+          </p>
+        </SectionCard>
+      )}
 
       <SectionCard icon={Gauge} title="Entorno">
         <InfoRow label="TensorFlow" value={info.versions.tensorflow} mono />
